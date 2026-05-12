@@ -1,0 +1,35 @@
+# Binary, built via `go build`
+terraform-provider-claude-managed-agents
+
+# Built provider binaries for local install
+dist/
+
+# Test artifacts
+*.test
+*.out
+coverage.txt
+
+# Terraform state from acceptance scratch dirs
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+crash.log
+crash.*.log
+
+# Editor & OS
+.idea/
+.vscode/
+.DS_Store
+.envrc
+
+# Local development overrides
+.terraformrc
+terraform.tfrc
+
+# Secrets (never commit)
+.env
+*.pem
+
+# Internal AI scratch (plans, research notes)
+.claude/
