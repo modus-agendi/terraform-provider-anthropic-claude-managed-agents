@@ -1,4 +1,4 @@
-NAMESPACE   ?= asvirida
+NAMESPACE   ?= andasv
 NAME        ?= claude-managed-agents
 BINARY      := terraform-provider-$(NAME)
 VERSION     ?= 0.0.1-dev

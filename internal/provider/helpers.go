@@ -6,7 +6,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
-	"github.com/asvirida/terraform-provider-claude-managed-agents/internal/client"
+	"github.com/andasv/terraform-provider-claude-managed-agents/internal/client"
 )
 
 // agentFromAPI maps a client.Agent into the Terraform schema model.

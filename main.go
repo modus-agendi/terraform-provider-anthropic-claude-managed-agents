@@ -5,7 +5,7 @@ import (
 	"flag"
 	"log"
 
-	"github.com/asvirida/terraform-provider-claude-managed-agents/internal/provider"
+	"github.com/andasv/terraform-provider-claude-managed-agents/internal/provider"
 
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 )
@@ -21,7 +21,7 @@ func main() {
 	flag.Parse()
 
 	opts := providerserver.ServeOpts{
-		Address: "registry.terraform.io/asvirida/claude-managed-agents",
+		Address: "registry.terraform.io/andasv/claude-managed-agents",
 		Debug:   debug,
 	}
 

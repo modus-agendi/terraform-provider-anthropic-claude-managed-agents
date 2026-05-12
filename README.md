@@ -1,7 +1,7 @@
 # terraform-provider-claude-managed-agents
 
-[![CI](https://github.com/asvirida/terraform-provider-claude-managed-agents/actions/workflows/test.yml/badge.svg)](https://github.com/asvirida/terraform-provider-claude-managed-agents/actions/workflows/test.yml)
-[![Release](https://github.com/asvirida/terraform-provider-claude-managed-agents/actions/workflows/release.yml/badge.svg)](https://github.com/asvirida/terraform-provider-claude-managed-agents/actions/workflows/release.yml)
+[![CI](https://github.com/andasv/terraform-provider-claude-managed-agents/actions/workflows/test.yml/badge.svg)](https://github.com/andasv/terraform-provider-claude-managed-agents/actions/workflows/test.yml)
+[![Release](https://github.com/andasv/terraform-provider-claude-managed-agents/actions/workflows/release.yml/badge.svg)](https://github.com/andasv/terraform-provider-claude-managed-agents/actions/workflows/release.yml)
 [![License: MPL 2.0](https://img.shields.io/badge/license-MPL%202.0-blue.svg)](https://www.mozilla.org/MPL/2.0/)
 
 A Terraform / OpenTofu provider for **Anthropic Claude Managed Agents** — declaratively manage agents, environments, vaults, and memory stores from Terraform configurations.
@@ -45,7 +45,7 @@ terraform {
 
   required_providers {
     claude-managed-agents = {
-      source  = "asvirida/claude-managed-agents"
+      source  = "andasv/claude-managed-agents"
       version = "~> 0.1"
     }
   }
@@ -116,7 +116,7 @@ The provider builds on protocol v6 and uses the Plugin Framework. It works again
 Pre-requisites: Go 1.23+, Terraform 1.8+ (or OpenTofu 1.6+), `golangci-lint`.
 
 ```sh
-git clone https://github.com/asvirida/terraform-provider-claude-managed-agents
+git clone https://github.com/andasv/terraform-provider-claude-managed-agents
 cd terraform-provider-claude-managed-agents
 go mod download
 
@@ -135,7 +135,7 @@ Once installed locally, pin the dev version in your test `main.tf`:
 terraform {
   required_providers {
     claude-managed-agents = {
-      source  = "asvirida/claude-managed-agents"
+      source  = "andasv/claude-managed-agents"
       version = "0.0.1-dev"
     }
   }

@@ -18,7 +18,7 @@ terraform {
 
   required_providers {
     claude-managed-agents = {
-      source  = "asvirida/claude-managed-agents"
+      source  = "andasv/claude-managed-agents"
       version = "~> 0.1"
     }
   }

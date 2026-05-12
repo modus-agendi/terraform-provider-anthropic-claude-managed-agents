@@ -8,7 +8,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
-	"github.com/asvirida/terraform-provider-claude-managed-agents/internal/client"
+	"github.com/andasv/terraform-provider-claude-managed-agents/internal/client"
 )
 
 var (

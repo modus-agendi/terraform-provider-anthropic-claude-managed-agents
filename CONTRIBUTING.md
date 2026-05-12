@@ -26,7 +26,7 @@ make docs          # regenerate docs/ via tfplugindocs
 ```
 
 `make install` writes the binary to
-`~/.terraform.d/plugins/registry.terraform.io/asvirida/claude-managed-agents/<version>/<os_arch>/`,
+`~/.terraform.d/plugins/registry.terraform.io/andasv/claude-managed-agents/<version>/<os_arch>/`,
 which is where Terraform 1.x looks for filesystem plugins. A `main.tf` that
 declares the provider with the same `<version>` will pick it up.
 

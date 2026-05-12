@@ -12,7 +12,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 
-	"github.com/asvirida/terraform-provider-claude-managed-agents/internal/client"
+	"github.com/andasv/terraform-provider-claude-managed-agents/internal/client"
 )
 
 // Ensure the implementation satisfies the expected interfaces.

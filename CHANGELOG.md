@@ -16,4 +16,4 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   httptest server by default; live API runs are opt-in via `TF_ACC_LIVE=1`).
 - GitHub Actions workflows for CI and release.
 
-[Unreleased]: https://github.com/asvirida/terraform-provider-claude-managed-agents/compare/HEAD...HEAD
+[Unreleased]: https://github.com/andasv/terraform-provider-claude-managed-agents/compare/HEAD...HEAD
