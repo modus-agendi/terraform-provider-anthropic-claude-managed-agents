@@ -6,6 +6,16 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-05-13
+
+### Fixed
+- **CI / release**: SLSA provenance reusable workflow must be pinned by
+  tag (not commit SHA). The generator introspects its own ref and rejects
+  anything that isn't `refs/tags/vX.Y.Z` — its Sigstore builder-identity
+  attestation is bound to the tag. Reverted that one `uses:` line to
+  `@v2.0.0`. v0.2.0 / v0.2.1 release artifacts shipped fine; v0.2.2
+  re-releases the same code with provenance now actually attached.
+
 ## [0.2.1] - 2026-05-13
 
 ### Fixed
@@ -162,7 +172,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   httptest server by default; live API runs are opt-in via `TF_ACC_LIVE=1`).
 - GitHub Actions workflows for CI and release.
 
-[Unreleased]: https://github.com/andasv/terraform-provider-claude-managed-agents/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/andasv/terraform-provider-claude-managed-agents/compare/v0.2.2...HEAD
+[0.2.2]: https://github.com/andasv/terraform-provider-claude-managed-agents/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/andasv/terraform-provider-claude-managed-agents/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/andasv/terraform-provider-claude-managed-agents/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/andasv/terraform-provider-claude-managed-agents/releases/tag/v0.1.0
