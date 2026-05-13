@@ -7,6 +7,11 @@ on:
         description: "If true, only run the sweeper (do not run live tests)"
         type: boolean
         default: false
+  # Weekly drift detection. Runs Monday 03:00 UTC. The pre/post sweeper
+  # cleans up resources older than 1h with the tf-acc-test- prefix, so
+  # the cost is bounded.
+  schedule:
+    - cron: "0 3 * * 1"
 
 permissions:
   contents: read
