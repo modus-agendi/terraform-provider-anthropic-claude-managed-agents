@@ -6,6 +6,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-05-13
+
 ### Added
 - Initial scaffold of the provider.
 - Resource `claude-managed-agents_agent` (flat fields: `name`, `model`,
@@ -16,4 +18,5 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   httptest server by default; live API runs are opt-in via `TF_ACC_LIVE=1`).
 - GitHub Actions workflows for CI and release.
 
-[Unreleased]: https://github.com/andasv/terraform-provider-claude-managed-agents/compare/HEAD...HEAD
+[Unreleased]: https://github.com/andasv/terraform-provider-claude-managed-agents/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/andasv/terraform-provider-claude-managed-agents/releases/tag/v0.1.0
