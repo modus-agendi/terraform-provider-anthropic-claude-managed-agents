@@ -98,7 +98,7 @@ func mcpServersListToAPI(ctx context.Context, l types.List) ([]client.McpServer,
 }
 
 // skillsListFromAPI mirrors mcpServersListFromAPI for the `skills` field.
-func skillsListFromAPI(ctx context.Context, skills []client.Skill) (types.List, diag.Diagnostics) {
+func skillsListFromAPI(ctx context.Context, skills []client.AgentSkillRef) (types.List, diag.Diagnostics) {
 	objType := types.ObjectType{AttrTypes: skillObjectAttrTypes()}
 	var diags diag.Diagnostics
 	items := make([]attr.Value, 0, len(skills))
@@ -121,7 +121,7 @@ func skillsListFromAPI(ctx context.Context, skills []client.Skill) (types.List, 
 }
 
 // skillsListToAPI is the inverse of skillsListFromAPI.
-func skillsListToAPI(ctx context.Context, l types.List) ([]client.Skill, diag.Diagnostics) {
+func skillsListToAPI(ctx context.Context, l types.List) ([]client.AgentSkillRef, diag.Diagnostics) {
 	if l.IsNull() || l.IsUnknown() {
 		return nil, nil
 	}
@@ -136,9 +136,9 @@ func skillsListToAPI(ctx context.Context, l types.List) ([]client.Skill, diag.Di
 	if diags.HasError() {
 		return nil, diags
 	}
-	out := make([]client.Skill, 0, len(entries))
+	out := make([]client.AgentSkillRef, 0, len(entries))
 	for _, e := range entries {
-		out = append(out, client.Skill{
+		out = append(out, client.AgentSkillRef{
 			Type:    e.Type.ValueString(),
 			SkillID: e.SkillID.ValueString(),
 			Version: e.Version.ValueString(),
