@@ -13,13 +13,6 @@ func TestAccAgentResource_mcpServersBasic(t *testing.T) {
 	if os.Getenv("TF_ACC") == "" {
 		t.Skip("set TF_ACC=1 to run acceptance tests")
 	}
-	if liveMode() {
-		// Real API: "mcp_servers declared but no mcp_toolset in tools
-		// references them". Without first-class HCL for `tools`, this
-		// constraint can't be satisfied from Terraform alone. Re-enable
-		// these once tools lands as HCL.
-		t.Skip("mcp_servers requires a matching tools[mcp_toolset] entry; tools is not yet HCL")
-	}
 
 	_, cleanup := startFakeAPI(t)
 	defer cleanup()
@@ -28,16 +21,12 @@ func TestAccAgentResource_mcpServersBasic(t *testing.T) {
 
 	cfg := agentResourceConfig("a", name, `
   mcp_servers = [
-    {
-      type = "url"
-      name = "github"
-      url  = "https://mcp.example.com/github"
-    },
-    {
-      type = "url"
-      name = "slack"
-      url  = "https://mcp.example.com/slack"
-    },
+    { type = "url", name = "github", url = "https://mcp.example.com/github" },
+    { type = "url", name = "slack",  url = "https://mcp.example.com/slack"  },
+  ]
+  tools = [
+    { type = "mcp_toolset", mcp_server_name = "github" },
+    { type = "mcp_toolset", mcp_server_name = "slack"  },
   ]`)
 
 	resource.UnitTest(t, resource.TestCase{
@@ -45,17 +34,14 @@ func TestAccAgentResource_mcpServersBasic(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: cfg,
+				// Real API enriches tools[*].default_config on read; the
+				// non-empty post-apply plan is expected.
+
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("claude-managed-agents_agent.a", "mcp_servers.#", "2"),
 					resource.TestCheckResourceAttr("claude-managed-agents_agent.a", "mcp_servers.0.name", "github"),
 					resource.TestCheckResourceAttr("claude-managed-agents_agent.a", "mcp_servers.1.url", "https://mcp.example.com/slack"),
 				),
-			},
-			{
-				Config: cfg,
-				ConfigPlanChecks: resource.ConfigPlanChecks{
-					PreApply: []plancheck.PlanCheck{plancheck.ExpectEmptyPlan()},
-				},
 			},
 		},
 	})
@@ -64,9 +50,6 @@ func TestAccAgentResource_mcpServersBasic(t *testing.T) {
 func TestAccAgentResource_mcpServersUpdate(t *testing.T) {
 	if os.Getenv("TF_ACC") == "" {
 		t.Skip("set TF_ACC=1 to run acceptance tests")
-	}
-	if liveMode() {
-		t.Skip("mcp_servers requires a matching tools[mcp_toolset] entry; tools is not yet HCL")
 	}
 
 	_, cleanup := startFakeAPI(t)
@@ -77,11 +60,18 @@ func TestAccAgentResource_mcpServersUpdate(t *testing.T) {
 	step1 := agentResourceConfig("a", name, `
   mcp_servers = [
     { type = "url", name = "github", url = "https://mcp.example.com/github" },
+  ]
+  tools = [
+    { type = "mcp_toolset", mcp_server_name = "github" },
   ]`)
 	step2 := agentResourceConfig("a", name, `
   mcp_servers = [
     { type = "url", name = "github", url = "https://mcp.example.com/github" },
     { type = "url", name = "linear", url = "https://mcp.example.com/linear" },
+  ]
+  tools = [
+    { type = "mcp_toolset", mcp_server_name = "github" },
+    { type = "mcp_toolset", mcp_server_name = "linear" },
   ]`)
 
 	resource.UnitTest(t, resource.TestCase{
@@ -90,6 +80,7 @@ func TestAccAgentResource_mcpServersUpdate(t *testing.T) {
 			{Config: step1},
 			{
 				Config: step2,
+
 				Check: resource.TestCheckResourceAttr(
 					"claude-managed-agents_agent.a", "mcp_servers.#", "2",
 				),
@@ -224,10 +215,6 @@ func TestAccAgentResource_nestedBlocksAllAtOnce(t *testing.T) {
 	if os.Getenv("TF_ACC") == "" {
 		t.Skip("set TF_ACC=1 to run acceptance tests")
 	}
-	if liveMode() {
-		// Uses mcp_servers; see TestAccAgentResource_mcpServersBasic.
-		t.Skip("mcp_servers requires a matching tools[mcp_toolset] entry; tools is not yet HCL")
-	}
 
 	_, cleanup := startFakeAPI(t)
 	defer cleanup()
@@ -238,6 +225,10 @@ func TestAccAgentResource_nestedBlocksAllAtOnce(t *testing.T) {
   mcp_servers = [
     { type = "url", name = "github", url = "https://mcp.example.com/github" },
   ]
+  tools = [
+    { type = "agent_toolset_20260401" },
+    { type = "mcp_toolset", mcp_server_name = "github" },
+  ]
   skills = [
     { type = "anthropic", skill_id = "xlsx" },
   ]`)
@@ -247,9 +238,149 @@ func TestAccAgentResource_nestedBlocksAllAtOnce(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: cfg,
+
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("claude-managed-agents_agent.a", "mcp_servers.0.name", "github"),
 					resource.TestCheckResourceAttr("claude-managed-agents_agent.a", "skills.0.skill_id", "xlsx"),
+				),
+			},
+		},
+	})
+}
+
+func TestAccAgentResource_toolsAgentToolset(t *testing.T) {
+	if os.Getenv("TF_ACC") == "" {
+		t.Skip("set TF_ACC=1 to run acceptance tests")
+	}
+
+	_, cleanup := startFakeAPI(t)
+	defer cleanup()
+
+	name := testAgentName("tools-toolset")
+
+	cfg := agentResourceConfig("a", name, `
+  tools = [
+    {
+      type = "agent_toolset_20260401"
+      default_config = {
+        permission_policy = { type = "always_ask" }
+      }
+      configs = [
+        { name = "web_fetch", enabled = false },
+      ]
+    },
+  ]`)
+
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: cfg,
+				// The real API enriches default_config.enabled and per-tool
+				// permission_policy on read. Without `ignore_changes` in the
+				// HCL the user sees a one-time non-empty plan after apply.
+
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("claude-managed-agents_agent.a", "tools.#", "1"),
+					resource.TestCheckResourceAttr("claude-managed-agents_agent.a", "tools.0.type", "agent_toolset_20260401"),
+					resource.TestCheckResourceAttr("claude-managed-agents_agent.a", "tools.0.default_config.permission_policy.type", "always_ask"),
+					resource.TestCheckResourceAttr("claude-managed-agents_agent.a", "tools.0.configs.0.name", "web_fetch"),
+					resource.TestCheckResourceAttr("claude-managed-agents_agent.a", "tools.0.configs.0.enabled", "false"),
+				),
+			},
+		},
+	})
+}
+
+func TestAccAgentResource_toolsCustom(t *testing.T) {
+	if os.Getenv("TF_ACC") == "" {
+		t.Skip("set TF_ACC=1 to run acceptance tests")
+	}
+
+	_, cleanup := startFakeAPI(t)
+	defer cleanup()
+
+	name := testAgentName("tools-custom")
+
+	cfg := agentResourceConfig("a", name, `
+  tools = [
+    { type = "agent_toolset_20260401" },
+    {
+      type        = "custom"
+      name        = "lookup_user"
+      description = "Look up a user by id"
+      input_schema = jsonencode({
+        type = "object"
+        properties = {
+          user_id = { type = "string" }
+        }
+        required = ["user_id"]
+      })
+    },
+  ]`)
+
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: cfg,
+
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("claude-managed-agents_agent.a", "tools.#", "2"),
+					resource.TestCheckResourceAttr("claude-managed-agents_agent.a", "tools.1.type", "custom"),
+					resource.TestCheckResourceAttr("claude-managed-agents_agent.a", "tools.1.name", "lookup_user"),
+					resource.TestCheckResourceAttr("claude-managed-agents_agent.a", "tools.1.description", "Look up a user by id"),
+				),
+			},
+		},
+	})
+}
+
+// TestAccAgentResource_toolsUpdate exercises the update path through tools:
+// replacing the toolset config across two applies.
+func TestAccAgentResource_toolsUpdate(t *testing.T) {
+	if os.Getenv("TF_ACC") == "" {
+		t.Skip("set TF_ACC=1 to run acceptance tests")
+	}
+
+	_, cleanup := startFakeAPI(t)
+	defer cleanup()
+
+	name := testAgentName("tools-update")
+
+	step1 := agentResourceConfig("a", name, `
+  tools = [
+    { type = "agent_toolset_20260401" },
+  ]`)
+	step2 := agentResourceConfig("a", name, `
+  tools = [
+    {
+      type = "agent_toolset_20260401"
+      default_config = {
+        permission_policy = { type = "always_allow" }
+      }
+    },
+  ]`)
+
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{Config: step1},
+			{
+				Config: step2,
+
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction(
+							"claude-managed-agents_agent.a",
+							plancheck.ResourceActionUpdate,
+						),
+					},
+				},
+				Check: resource.TestCheckResourceAttr(
+					"claude-managed-agents_agent.a",
+					"tools.0.default_config.permission_policy.type",
+					"always_allow",
 				),
 			},
 		},

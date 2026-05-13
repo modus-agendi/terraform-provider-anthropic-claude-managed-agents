@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"encoding/json"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -168,6 +169,265 @@ func multiagentFromAPI(ctx context.Context, m *client.Multiagent) (types.Object,
 	})
 	diags.Append(d...)
 	return obj, diags
+}
+
+// --- tools mapping ---
+
+func toolObjectAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"type":            types.StringType,
+		"mcp_server_name": types.StringType,
+		"name":            types.StringType,
+		"description":     types.StringType,
+		"input_schema":    types.StringType,
+		"default_config":  types.ObjectType{AttrTypes: defaultConfigAttrTypes()},
+		"configs":         types.ListType{ElemType: types.ObjectType{AttrTypes: toolConfigEntryAttrTypes()}},
+	}
+}
+
+// defaultConfigAttrTypes is the shape of the toolset-wide `default_config`
+// (no per-tool name).
+func defaultConfigAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"enabled":           types.BoolType,
+		"permission_policy": types.ObjectType{AttrTypes: permissionPolicyAttrTypes()},
+	}
+}
+
+// toolConfigEntryAttrTypes is the shape of one `configs[*]` entry (per-tool
+// override, identified by name).
+func toolConfigEntryAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"name":              types.StringType,
+		"enabled":           types.BoolType,
+		"permission_policy": types.ObjectType{AttrTypes: permissionPolicyAttrTypes()},
+	}
+}
+
+func permissionPolicyAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"type": types.StringType,
+	}
+}
+
+// toolsListFromAPI maps the API response into a TF list, preserving the
+// prior plan/state's default_config and configs fields where the API
+// enriches them (the real API populates default_config.enabled and
+// per-tool permission_policy on read; we want state to mirror user intent,
+// not the API's defaults).
+//
+// `prior` is the previous plan or state's tools list; pass an empty/null
+// list for first-time reads.
+func toolsListFromAPI(ctx context.Context, tools []client.Tool, prior types.List) (types.List, diag.Diagnostics) {
+	objType := types.ObjectType{AttrTypes: toolObjectAttrTypes()}
+	var diags diag.Diagnostics
+
+	// Decode prior into a slice we can index by position. The API preserves
+	// tool ordering, so we align on index.
+	priorByIdx := decodeToolsPrior(ctx, prior, &diags)
+	if diags.HasError() {
+		return types.ListNull(objType), diags
+	}
+
+	items := make([]attr.Value, 0, len(tools))
+	for i, t := range tools {
+		var priorEntry *priorTool
+		if i < len(priorByIdx) {
+			priorEntry = &priorByIdx[i]
+		}
+
+		// default_config + configs: preserve prior state if any; otherwise
+		// drop the API-enriched value to keep plan/state in sync.
+		var defaultCfg types.Object
+		var configs types.List
+		if priorEntry != nil {
+			defaultCfg = priorEntry.DefaultConfig
+			configs = priorEntry.Configs
+		} else {
+			defaultCfg = types.ObjectNull(defaultConfigAttrTypes())
+			configs = types.ListNull(types.ObjectType{AttrTypes: toolConfigEntryAttrTypes()})
+		}
+
+		mcpName := types.StringNull()
+		if t.McpServerName != "" {
+			mcpName = types.StringValue(t.McpServerName)
+		}
+		name := types.StringNull()
+		if t.Name != "" {
+			name = types.StringValue(t.Name)
+		}
+		desc := types.StringNull()
+		if t.Description != "" {
+			desc = types.StringValue(t.Description)
+		}
+		schema := types.StringNull()
+		if len(t.InputSchema) > 0 && string(t.InputSchema) != "null" {
+			schema = types.StringValue(string(t.InputSchema))
+		}
+
+		obj, d := types.ObjectValue(toolObjectAttrTypes(), map[string]attr.Value{
+			"type":            types.StringValue(t.Type),
+			"mcp_server_name": mcpName,
+			"name":            name,
+			"description":     desc,
+			"input_schema":    schema,
+			"default_config":  defaultCfg,
+			"configs":         configs,
+		})
+		diags.Append(d...)
+		items = append(items, obj)
+	}
+	list, d := types.ListValue(objType, items)
+	diags.Append(d...)
+	return list, diags
+}
+
+// priorTool is the subset of tools[*] fields we preserve from prior state.
+type priorTool struct {
+	DefaultConfig types.Object
+	Configs       types.List
+}
+
+func decodeToolsPrior(ctx context.Context, prior types.List, diags *diag.Diagnostics) []priorTool {
+	if prior.IsNull() || prior.IsUnknown() {
+		return nil
+	}
+	type entry struct {
+		Type          types.String `tfsdk:"type"`
+		McpServerName types.String `tfsdk:"mcp_server_name"`
+		Name          types.String `tfsdk:"name"`
+		Description   types.String `tfsdk:"description"`
+		InputSchema   types.String `tfsdk:"input_schema"`
+		DefaultConfig types.Object `tfsdk:"default_config"`
+		Configs       types.List   `tfsdk:"configs"`
+	}
+	var entries []entry
+	diags.Append(prior.ElementsAs(ctx, &entries, false)...)
+	if diags.HasError() {
+		return nil
+	}
+	out := make([]priorTool, len(entries))
+	for i, e := range entries {
+		out[i] = priorTool{DefaultConfig: e.DefaultConfig, Configs: e.Configs}
+	}
+	return out
+}
+
+func toolsListToAPI(ctx context.Context, l types.List) ([]client.Tool, diag.Diagnostics) {
+	if l.IsNull() || l.IsUnknown() {
+		return nil, nil
+	}
+	var diags diag.Diagnostics
+	type toolModel struct {
+		Type          types.String `tfsdk:"type"`
+		McpServerName types.String `tfsdk:"mcp_server_name"`
+		Name          types.String `tfsdk:"name"`
+		Description   types.String `tfsdk:"description"`
+		InputSchema   types.String `tfsdk:"input_schema"`
+		DefaultConfig types.Object `tfsdk:"default_config"`
+		Configs       types.List   `tfsdk:"configs"`
+	}
+	var entries []toolModel
+	diags.Append(l.ElementsAs(ctx, &entries, false)...)
+	if diags.HasError() {
+		return nil, diags
+	}
+	out := make([]client.Tool, 0, len(entries))
+	for _, e := range entries {
+		t := client.Tool{
+			Type:          e.Type.ValueString(),
+			McpServerName: e.McpServerName.ValueString(),
+			Name:          e.Name.ValueString(),
+			Description:   e.Description.ValueString(),
+		}
+		if !e.InputSchema.IsNull() && !e.InputSchema.IsUnknown() && e.InputSchema.ValueString() != "" {
+			t.InputSchema = json.RawMessage(e.InputSchema.ValueString())
+		}
+		if !e.DefaultConfig.IsNull() && !e.DefaultConfig.IsUnknown() {
+			cfg, d := toolConfigToAPI(ctx, e.DefaultConfig)
+			diags.Append(d...)
+			t.DefaultConfig = cfg
+		}
+		if !e.Configs.IsNull() && !e.Configs.IsUnknown() {
+			cfgs, d := toolConfigListToAPI(ctx, e.Configs)
+			diags.Append(d...)
+			t.Configs = cfgs
+		}
+		out = append(out, t)
+	}
+	return out, diags
+}
+
+// toolConfigToAPI maps a default_config object (no name field) into the
+// client struct.
+func toolConfigToAPI(ctx context.Context, obj types.Object) (*client.ToolConfig, diag.Diagnostics) {
+	if obj.IsNull() || obj.IsUnknown() {
+		return nil, nil
+	}
+	var diags diag.Diagnostics
+	var raw struct {
+		Enabled          types.Bool   `tfsdk:"enabled"`
+		PermissionPolicy types.Object `tfsdk:"permission_policy"`
+	}
+	diags.Append(obj.As(ctx, &raw, basicObjectAsOpts())...)
+	if diags.HasError() {
+		return nil, diags
+	}
+	out := &client.ToolConfig{}
+	if !raw.Enabled.IsNull() && !raw.Enabled.IsUnknown() {
+		b := raw.Enabled.ValueBool()
+		out.Enabled = &b
+	}
+	if !raw.PermissionPolicy.IsNull() && !raw.PermissionPolicy.IsUnknown() {
+		pp, d := permissionPolicyToAPI(ctx, raw.PermissionPolicy)
+		diags.Append(d...)
+		out.PermissionPolicy = pp
+	}
+	return out, diags
+}
+
+func toolConfigListToAPI(ctx context.Context, l types.List) ([]client.ToolConfig, diag.Diagnostics) {
+	var diags diag.Diagnostics
+	type entry struct {
+		Name             types.String `tfsdk:"name"`
+		Enabled          types.Bool   `tfsdk:"enabled"`
+		PermissionPolicy types.Object `tfsdk:"permission_policy"`
+	}
+	var entries []entry
+	diags.Append(l.ElementsAs(ctx, &entries, false)...)
+	if diags.HasError() {
+		return nil, diags
+	}
+	out := make([]client.ToolConfig, 0, len(entries))
+	for _, e := range entries {
+		cfg := client.ToolConfig{Name: e.Name.ValueString()}
+		if !e.Enabled.IsNull() && !e.Enabled.IsUnknown() {
+			b := e.Enabled.ValueBool()
+			cfg.Enabled = &b
+		}
+		if !e.PermissionPolicy.IsNull() && !e.PermissionPolicy.IsUnknown() {
+			pp, d := permissionPolicyToAPI(ctx, e.PermissionPolicy)
+			diags.Append(d...)
+			cfg.PermissionPolicy = pp
+		}
+		out = append(out, cfg)
+	}
+	return out, diags
+}
+
+func permissionPolicyToAPI(ctx context.Context, obj types.Object) (*client.PermissionPolicy, diag.Diagnostics) {
+	if obj.IsNull() || obj.IsUnknown() {
+		return nil, nil
+	}
+	var diags diag.Diagnostics
+	var raw struct {
+		Type types.String `tfsdk:"type"`
+	}
+	diags.Append(obj.As(ctx, &raw, basicObjectAsOpts())...)
+	if diags.HasError() {
+		return nil, diags
+	}
+	return &client.PermissionPolicy{Type: raw.Type.ValueString()}, diags
 }
 
 func multiagentToAPI(ctx context.Context, obj types.Object) (*client.Multiagent, diag.Diagnostics) {

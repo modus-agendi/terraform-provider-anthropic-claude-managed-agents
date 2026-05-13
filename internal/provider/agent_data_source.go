@@ -59,6 +59,46 @@ func (d *agentDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, 
 					},
 				},
 			},
+			"tools": schema.ListNestedAttribute{
+				Computed:            true,
+				MarkdownDescription: "Tools configured on the agent. See the resource for the full schema.",
+				NestedObject: schema.NestedAttributeObject{
+					Attributes: map[string]schema.Attribute{
+						"type":            schema.StringAttribute{Computed: true},
+						"mcp_server_name": schema.StringAttribute{Computed: true},
+						"name":            schema.StringAttribute{Computed: true},
+						"description":     schema.StringAttribute{Computed: true},
+						"input_schema":    schema.StringAttribute{Computed: true},
+						"default_config": schema.SingleNestedAttribute{
+							Computed: true,
+							Attributes: map[string]schema.Attribute{
+								"enabled": schema.BoolAttribute{Computed: true},
+								"permission_policy": schema.SingleNestedAttribute{
+									Computed: true,
+									Attributes: map[string]schema.Attribute{
+										"type": schema.StringAttribute{Computed: true},
+									},
+								},
+							},
+						},
+						"configs": schema.ListNestedAttribute{
+							Computed: true,
+							NestedObject: schema.NestedAttributeObject{
+								Attributes: map[string]schema.Attribute{
+									"name":    schema.StringAttribute{Computed: true},
+									"enabled": schema.BoolAttribute{Computed: true},
+									"permission_policy": schema.SingleNestedAttribute{
+										Computed: true,
+										Attributes: map[string]schema.Attribute{
+											"type": schema.StringAttribute{Computed: true},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
 			"skills": schema.ListNestedAttribute{
 				Computed:            true,
 				MarkdownDescription: "Skills configured on the agent.",
@@ -119,7 +159,10 @@ func (d *agentDataSource) Read(ctx context.Context, req datasource.ReadRequest, 
 		return
 	}
 
-	state := agentFromAPI(ctx, agent, &resp.Diagnostics)
+	// Data source has no prior state; pass null so the helper drops API
+	// enrichment for default_config/configs. Users querying the data
+	// source for tools metadata should set them via the resource.
+	state := agentFromAPI(ctx, agent, types.ListNull(types.ObjectType{AttrTypes: toolObjectAttrTypes()}), &resp.Diagnostics)
 	if resp.Diagnostics.HasError() {
 		return
 	}

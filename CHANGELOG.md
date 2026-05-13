@@ -45,12 +45,22 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   see Terraform plan to set them on the next refresh. Adding the matching
   HCL declaration is a no-op.
 
-### Note
-- The fourth nested field (`tools`) is intentionally not yet first-class
-  in HCL. The provider continues to round-trip server-side tool config
-  through `json.RawMessage` so users who configure it via the API are
-  not clobbered by Terraform updates. First-class HCL for `tools` (with
-  permission policies and custom-tool input schemas) lands in a follow-up.
+### Added (tools as first-class HCL)
+- `claude-managed-agents_agent.tools` is now first-class HCL covering all
+  three variants:
+  - `agent_toolset_20260401` — the bundled Anthropic toolset.
+  - `mcp_toolset` — exposes an MCP server's tools, bound via
+    `mcp_server_name` to an entry of `mcp_servers`.
+  - `custom` — user-defined tools with `name`, `description`, and a
+    JSON-encoded `input_schema`.
+- `default_config` + `configs[*]` carry per-toolset and per-tool overrides
+  (`enabled`, `permission_policy.type` = `always_allow` | `always_ask`).
+  These fields are user-controlled: the provider preserves the HCL-declared
+  value in state and ignores API-side enrichment to keep plans clean.
+- The data source `claude-managed-agents_agent` exposes the same fields
+  as Computed.
+- Previously-skipped live tests (`mcp_servers`, nested-all-at-once) now
+  pass against the real API since `tools[mcp_toolset]` is configurable.
 
 ### Changed (BREAKING)
 - Minimum Terraform raised to **1.11** (OpenTofu 1.8). The provider now uses

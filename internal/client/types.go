@@ -15,11 +15,8 @@ type ModelConfig struct {
 
 // Agent is the read shape returned by GET /v1/agents/{id}.
 //
-// The nested config fields exposed as HCL in v0.2 (mcp_servers, skills,
-// multiagent) round-trip through typed structs. `Tools` is kept as
-// json.RawMessage for now — the provider preserves server-side tool config
-// (set via API directly) on update without exposing it in HCL. A follow-up
-// PR will model tools as first-class HCL.
+// All four nested-config fields (tools, mcp_servers, skills, multiagent)
+// round-trip through typed structs as of v0.2.
 type Agent struct {
 	ID          string            `json:"id"`
 	Type        string            `json:"type"`
@@ -33,10 +30,54 @@ type Agent struct {
 	UpdatedAt   time.Time         `json:"updated_at"`
 	ArchivedAt  *time.Time        `json:"archived_at"`
 
-	Tools      json.RawMessage `json:"tools,omitempty"`
-	McpServers []McpServer     `json:"mcp_servers,omitempty"`
-	Skills     []Skill         `json:"skills,omitempty"`
-	Multiagent *Multiagent     `json:"multiagent,omitempty"`
+	Tools      []Tool      `json:"tools,omitempty"`
+	McpServers []McpServer `json:"mcp_servers,omitempty"`
+	Skills     []Skill     `json:"skills,omitempty"`
+	Multiagent *Multiagent `json:"multiagent,omitempty"`
+}
+
+// Tool is one entry of the agent's `tools` list. The shape is a
+// discriminated union on `type`:
+//
+//   - "agent_toolset_20260401" — the bundled Anthropic toolset (bash, edit,
+//     web_fetch, etc.). DefaultConfig applies to every tool; Configs
+//     overrides per-tool settings by `name`.
+//   - "mcp_toolset" — exposes the tools of an MCP server. McpServerName
+//     must match the `name` of an entry in the agent's `mcp_servers`.
+//     DefaultConfig / Configs follow the same shape but Configs `name`
+//     refers to individual tool names exposed by the MCP server.
+//   - "custom" — a user-defined tool. Name + Description are required;
+//     InputSchema is a JSON Schema describing the tool's argument shape.
+//
+// Only fields relevant to the variant are populated by the API on read.
+type Tool struct {
+	Type string `json:"type"`
+
+	// agent_toolset_20260401 + mcp_toolset
+	DefaultConfig *ToolConfig  `json:"default_config,omitempty"`
+	Configs       []ToolConfig `json:"configs,omitempty"`
+
+	// mcp_toolset
+	McpServerName string `json:"mcp_server_name,omitempty"`
+
+	// custom
+	Name        string          `json:"name,omitempty"`
+	Description string          `json:"description,omitempty"`
+	InputSchema json.RawMessage `json:"input_schema,omitempty"`
+}
+
+// ToolConfig is one entry of `configs` (Name set) or the value of
+// `default_config` (Name empty).
+type ToolConfig struct {
+	Name             string            `json:"name,omitempty"`
+	Enabled          *bool             `json:"enabled,omitempty"`
+	PermissionPolicy *PermissionPolicy `json:"permission_policy,omitempty"`
+}
+
+// PermissionPolicy gates whether a server-executed tool runs automatically
+// (`always_allow`) or waits for explicit approval (`always_ask`).
+type PermissionPolicy struct {
+	Type string `json:"type"`
 }
 
 // McpServer is one entry of the agent's `mcp_servers` list.
@@ -85,10 +126,10 @@ type AgentCreateRequest struct {
 	Description *string           `json:"description,omitempty"`
 	Metadata    map[string]string `json:"metadata,omitempty"`
 
-	Tools      json.RawMessage `json:"tools,omitempty"`
-	McpServers []McpServer     `json:"mcp_servers,omitempty"`
-	Skills     []Skill         `json:"skills,omitempty"`
-	Multiagent *Multiagent     `json:"multiagent,omitempty"`
+	Tools      []Tool      `json:"tools,omitempty"`
+	McpServers []McpServer `json:"mcp_servers,omitempty"`
+	Skills     []Skill     `json:"skills,omitempty"`
+	Multiagent *Multiagent `json:"multiagent,omitempty"`
 }
 
 // AgentUpdateRequest is the body for POST /v1/agents/{id}.
@@ -111,10 +152,10 @@ type AgentUpdateRequest struct {
 
 	// Pointer slices distinguish "leave unchanged" (nil) from "replace
 	// with this exact list" (non-nil — including an explicit empty list).
-	Tools      json.RawMessage `json:"tools,omitempty"`
-	McpServers *[]McpServer    `json:"mcp_servers,omitempty"`
-	Skills     *[]Skill        `json:"skills,omitempty"`
-	Multiagent *Multiagent     `json:"multiagent,omitempty"`
+	Tools      *[]Tool      `json:"tools,omitempty"`
+	McpServers *[]McpServer `json:"mcp_servers,omitempty"`
+	Skills     *[]Skill     `json:"skills,omitempty"`
+	Multiagent *Multiagent  `json:"multiagent,omitempty"`
 }
 
 // ListResponse is the cursor pagination envelope shared by all list endpoints.

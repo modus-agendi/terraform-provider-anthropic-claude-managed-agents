@@ -94,6 +94,7 @@ type fakeAgent struct {
 	UpdatedAt   string            `json:"updated_at"`
 	ArchivedAt  *string           `json:"archived_at"`
 
+	Tools      []map[string]any `json:"tools,omitempty"`
 	McpServers []map[string]any `json:"mcp_servers,omitempty"`
 	Skills     []map[string]any `json:"skills,omitempty"`
 	Multiagent map[string]any   `json:"multiagent,omitempty"`
@@ -680,6 +681,7 @@ func (f *fakeAPI) create(w http.ResponseWriter, r *http.Request) {
 		System      *string           `json:"system"`
 		Description *string           `json:"description"`
 		Metadata    map[string]string `json:"metadata"`
+		Tools       []map[string]any  `json:"tools"`
 		McpServers  []map[string]any  `json:"mcp_servers"`
 		Skills      []map[string]any  `json:"skills"`
 		Multiagent  map[string]any    `json:"multiagent"`
@@ -714,6 +716,7 @@ func (f *fakeAPI) create(w http.ResponseWriter, r *http.Request) {
 		Version:     1,
 		CreatedAt:   now,
 		UpdatedAt:   now,
+		Tools:       body.Tools,
 		McpServers:  body.McpServers,
 		Skills:      body.Skills,
 		Multiagent:  body.Multiagent,
@@ -749,6 +752,7 @@ func (f *fakeAPI) update(w http.ResponseWriter, r *http.Request, id string) {
 		System      json.RawMessage   `json:"system"`
 		Description json.RawMessage   `json:"description"`
 		Metadata    map[string]any    `json:"metadata"`
+		Tools       *[]map[string]any `json:"tools"`
 		McpServers  *[]map[string]any `json:"mcp_servers"`
 		Skills      *[]map[string]any `json:"skills"`
 		Multiagent  *map[string]any   `json:"multiagent"`
@@ -799,6 +803,9 @@ func (f *fakeAPI) update(w http.ResponseWriter, r *http.Request, id string) {
 		if s, ok := v.(string); ok {
 			a.Metadata[k] = s
 		}
+	}
+	if body.Tools != nil {
+		a.Tools = *body.Tools
 	}
 	if body.McpServers != nil {
 		a.McpServers = *body.McpServers
