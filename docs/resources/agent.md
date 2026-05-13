@@ -9,7 +9,7 @@ description: |-
   Updates
   Updates use server-side optimistic concurrency via the version field, which the provider manages automatically. If you see a version conflict in a plan, run terraform apply -refresh-only to pull the current server version into state.
   Metadata
-  The metadata map is key-level merged: removing a key from your HCL causes the provider to send the empty string for that key on update, which the API treats as a delete.
+  The metadata map uses full-replace semantics: the provider sends the exact map declared in HCL on every update, and the upstream API replaces whatever was stored. Removing a key from your HCL deletes it server-side.
   Server-side nested fields
   The upstream agent object also includes tools, mcp_servers, skills, and multiagent nested fields. v0.1 of this provider preserves whatever is on the server for those fields, but does not expose them as HCL. To change them today, use the API directly; Terraform updates to other fields will not clobber them.
 ---
@@ -28,7 +28,7 @@ Updates use server-side optimistic concurrency via the `version` field, which th
 
 ### Metadata
 
-The `metadata` map is key-level merged: removing a key from your HCL causes the provider to send the empty string for that key on update, which the API treats as a delete.
+The `metadata` map uses full-replace semantics: the provider sends the exact map declared in HCL on every update, and the upstream API replaces whatever was stored. Removing a key from your HCL deletes it server-side.
 
 ### Server-side nested fields
 
@@ -93,7 +93,7 @@ output "agent_version" {
 
 - `description` (String) Free-form description. Optional. Set to `null` to clear.
 - `mcp_servers` (Attributes List) MCP servers the agent may connect to at session runtime. Mutable. Sending an empty list clears server-side state. (see [below for nested schema](#nestedatt--mcp_servers))
-- `metadata` (Map of String) Arbitrary string-string labels. Merged at the key level on update: removing a key from your HCL causes the provider to send an empty-string value for that key, which the API treats as a delete.
+- `metadata` (Map of String) Arbitrary string-string labels. Full-replace on update: the provider sends the exact map declared in HCL, and the upstream API replaces whatever was stored. Removing a key from your HCL deletes it server-side.
 - `multiagent` (Attributes) Multi-agent coordinator config. Mutable. Set to null to clear. (see [below for nested schema](#nestedatt--multiagent))
 - `skills` (Attributes List) Skills the agent has access to. Mutable. (see [below for nested schema](#nestedatt--skills))
 - `system` (String) System prompt for the agent. Optional. Set to `null` to clear.

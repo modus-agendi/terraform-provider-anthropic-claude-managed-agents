@@ -96,7 +96,7 @@ func TestAccEnvironmentResource_packagesAndLimitedNetworking(t *testing.T) {
     }
     networking = {
       type                   = "limited"
-      allowed_hosts          = ["https://pypi.org", "https://registry.npmjs.org"]
+      allowed_hosts          = ["pypi.org", "registry.npmjs.org"]
       allow_mcp_servers      = false
       allow_package_managers = true
     }`),
@@ -166,7 +166,7 @@ func TestAccEnvironmentResource_requiresReplaceOnConfigChange(t *testing.T) {
     type = "cloud"
     networking = {
       type          = "limited"
-      allowed_hosts = ["https://pypi.org"]
+      allowed_hosts = ["pypi.org"]
     }`),
 				ConfigPlanChecks: resource.ConfigPlanChecks{
 					PreApply: []plancheck.PlanCheck{

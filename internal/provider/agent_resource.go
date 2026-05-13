@@ -59,7 +59,7 @@ func (r *agentResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 				Optional:            true,
 			},
 			"metadata": schema.MapAttribute{
-				MarkdownDescription: "Arbitrary string-string labels. Merged at the key level on update: removing a key from your HCL causes the provider to send an empty-string value for that key, which the API treats as a delete.",
+				MarkdownDescription: "Arbitrary string-string labels. Full-replace on update: the provider sends the exact map declared in HCL, and the upstream API replaces whatever was stored. Removing a key from your HCL deletes it server-side.",
 				Optional:            true,
 				ElementType:         types.StringType,
 			},
@@ -334,6 +334,6 @@ const agentResourceMarkdown = "Manages a Claude Managed Agents agent.\n\n" +
 	"### Updates\n\n" +
 	"Updates use server-side optimistic concurrency via the `version` field, which the provider manages automatically. If you see a version conflict in a plan, run `terraform apply -refresh-only` to pull the current server version into state.\n\n" +
 	"### Metadata\n\n" +
-	"The `metadata` map is key-level merged: removing a key from your HCL causes the provider to send the empty string for that key on update, which the API treats as a delete.\n\n" +
+	"The `metadata` map uses full-replace semantics: the provider sends the exact map declared in HCL on every update, and the upstream API replaces whatever was stored. Removing a key from your HCL deletes it server-side.\n\n" +
 	"### Server-side nested fields\n\n" +
 	"The upstream agent object also includes `tools`, `mcp_servers`, `skills`, and `multiagent` nested fields. v0.1 of this provider preserves whatever is on the server for those fields, but does not expose them as HCL. To change them today, use the API directly; Terraform updates to other fields will not clobber them."

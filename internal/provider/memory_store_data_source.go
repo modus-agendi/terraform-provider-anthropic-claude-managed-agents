@@ -80,7 +80,7 @@ func (d *memoryStoreDataSource) Read(ctx context.Context, req datasource.ReadReq
 		CreatedAt: types.StringValue(s.CreatedAt.Format(timeFormatRFC3339)),
 		UpdatedAt: types.StringValue(s.UpdatedAt.Format(timeFormatRFC3339)),
 	}
-	if s.Description != nil {
+	if s.Description != nil && *s.Description != "" {
 		state.Description = types.StringValue(*s.Description)
 	} else {
 		state.Description = types.StringNull()

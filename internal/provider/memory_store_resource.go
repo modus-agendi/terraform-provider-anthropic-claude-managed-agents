@@ -215,7 +215,10 @@ func memoryStoreFromAPI(s *client.MemoryStore, deleteOnDestroy types.Bool) memor
 		// so import works without a prior plan.
 		m.DeleteOnDestroy = types.BoolValue(false)
 	}
-	if s.Description != nil {
+	// Real API normalizes an unset description to "" instead of null.
+	// Treat the two as equivalent so plans stay clean for users who do not
+	// configure the attribute.
+	if s.Description != nil && *s.Description != "" {
 		m.Description = types.StringValue(*s.Description)
 	} else {
 		m.Description = types.StringNull()

@@ -8,7 +8,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/objectplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
@@ -79,21 +78,19 @@ func (r *environmentResource) Schema(_ context.Context, _ resource.SchemaRequest
 								Required:            true,
 							},
 							"allowed_hosts": schema.ListAttribute{
-								MarkdownDescription: "Hostnames or URL prefixes the agent may reach. Only valid when `type = \"limited\"`.",
+								MarkdownDescription: "Bare hostnames the agent may reach (e.g. `api.example.com`). URL schemes are rejected by the upstream API. Only valid when `type = \"limited\"`.",
 								Optional:            true,
 								ElementType:         types.StringType,
 							},
 							"allow_mcp_servers": schema.BoolAttribute{
-								MarkdownDescription: "When `type = \"limited\"`, whether the agent may call out to MCP servers. Defaults to `false`.",
+								MarkdownDescription: "When `type = \"limited\"`, whether the agent may call out to MCP servers. Must be unset (null) when `type = \"unrestricted\"`.",
 								Optional:            true,
 								Computed:            true,
-								Default:             booldefault.StaticBool(false),
 							},
 							"allow_package_managers": schema.BoolAttribute{
-								MarkdownDescription: "When `type = \"limited\"`, whether the agent may run package-manager installs. Defaults to `false`.",
+								MarkdownDescription: "When `type = \"limited\"`, whether the agent may run package-manager installs. Must be unset (null) when `type = \"unrestricted\"`.",
 								Optional:            true,
 								Computed:            true,
-								Default:             booldefault.StaticBool(false),
 							},
 						},
 					},

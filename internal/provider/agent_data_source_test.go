@@ -26,7 +26,9 @@ func TestAccAgentDataSource_notFound(t *testing.T) {
 data "claude-managed-agents_agent" "missing" {
   id = "agent_DOES_NOT_EXIST"
 }`,
-				ExpectError: regexp.MustCompile(`(?i)agent not found|no agent with id`),
+				// Real API rejects malformed ids with 400 "Invalid agent ID";
+				// the fake returns 404. Accept either path.
+				ExpectError: regexp.MustCompile(`(?i)agent not found|no agent with id|invalid agent id`),
 			},
 		},
 	})

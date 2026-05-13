@@ -146,7 +146,11 @@ func cloudConfigToObject(ctx context.Context, c *client.CloudConfig) (types.Obje
 
 func packagesToObject(ctx context.Context, p *client.Packages) (types.Object, diag.Diagnostics) {
 	var diags diag.Diagnostics
-	if p == nil {
+	// Treat nil + "all empty slices" as equivalent: the real API returns
+	// a non-nil object with empty per-language lists when packages is
+	// unset, which we normalize to a null Terraform object so plans stay
+	// clean for users who don't configure packages.
+	if p == nil || (len(p.Apt) == 0 && len(p.Cargo) == 0 && len(p.Gem) == 0 && len(p.Go) == 0 && len(p.Npm) == 0 && len(p.Pip) == 0) {
 		return types.ObjectNull(packagesObjectAttrTypes()), diags
 	}
 

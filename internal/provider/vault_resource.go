@@ -48,7 +48,7 @@ func (r *vaultResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 				Required:            true,
 			},
 			"metadata": schema.MapAttribute{
-				MarkdownDescription: "Arbitrary string-string labels. Key-level merged on update: removing a key from your HCL causes the provider to send an empty-string value, which the API treats as a delete.",
+				MarkdownDescription: "Arbitrary string-string labels. Full-replace on update: removing a key from your HCL deletes it server-side.",
 				Optional:            true,
 				ElementType:         types.StringType,
 			},
@@ -238,4 +238,4 @@ const vaultResourceMarkdown = "Manages a Claude Managed Agents vault — a works
 	"### Lifecycle on destroy\n\n" +
 	"By default, `terraform destroy` archives the vault (`POST /v1/vaults/{id}/archive`). Archive cascades through credentials: their secret payloads are purged but the records remain visible for audit. Set `delete_on_destroy = true` to hard-delete; that removes the vault and every credential without retention.\n\n" +
 	"### Updates\n\n" +
-	"`display_name` and `metadata` are mutable. The metadata map is key-level merged: removing a key from your HCL causes the provider to send an empty string for that key on update, which the API treats as a delete."
+	"`display_name` and `metadata` are mutable. The metadata map uses full-replace semantics: the provider sends the exact map declared in HCL on every update, and the upstream API replaces whatever was stored. Removing a key from your HCL deletes it server-side."
