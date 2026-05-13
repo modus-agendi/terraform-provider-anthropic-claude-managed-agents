@@ -15,24 +15,73 @@ will be a focused PR with code, a unit test, and a doc snippet.
 
 ## Local development loop
 
+Run `make` (or `make help`) to see every target with a one-line description.
+The categorized output is the source of truth — this section is a primer.
+
+Common workflows:
+
 ```sh
-make build         # compile the provider binary
-make install       # drop it into your local plugin cache so terraform finds it
-make test          # unit + integration tests with -race
-make testacc       # acceptance tests against the in-process httptest server
-make testacc-live  # acceptance tests against api.anthropic.com (needs ANTHROPIC_API_KEY)
-make sweep         # archive orphan test agents (needs ANTHROPIC_API_KEY)
-make coverage      # generate coverage.out
-make coverage-html # open-able coverage.html
-make lint          # golangci-lint (broad ruleset)
-make docs          # regenerate docs/ via tfplugindocs
-make docs-check    # validate doc structure (tfproviderdocs)
+# First-time setup — install pinned dev tools (golangci-lint, tfplugindocs,
+# tfproviderdocs) into ./bin
+make tools
+
+# Iteration loop — runs unit + integration tests with -race
+make test
+
+# Run a single test by name
+make test RUN=TestDo_429RetriesAndEventuallySucceeds
+
+# Acceptance tests against the in-process fake API
+make testacc
+
+# Acceptance tests against api.anthropic.com — needs ANTHROPIC_API_KEY
+# (auto-loaded from .env if present)
+make testacc-live
+
+# Clean up orphan tf-acc-test-* agents older than 1h
+make sweep
+
+# Coverage profile + HTML report (open coverage.html in browser)
+make coverage-html
+
+# Run everything CI runs, in order — pass this before pushing
+make pr
+
+# Install the provider locally so `terraform init` picks it up
+make install
 ```
 
 `make install` writes the binary to
 `~/.terraform.d/plugins/registry.terraform.io/andasv/claude-managed-agents/<version>/<os_arch>/`,
 which is where Terraform 1.x looks for filesystem plugins. A `main.tf` that
 declares the provider with the same `<version>` will pick it up.
+
+### `.env` for local API keys
+
+The Makefile auto-loads `.env` if it exists in the project root, so
+`testacc-live`, `sweep`, and any other target that needs `ANTHROPIC_API_KEY`
+just works. Keep the file simple — `KEY=VALUE` per line, no quotes or shell
+substitution. `.env` is gitignored.
+
+### Tool versions
+
+`golangci-lint`, `tfplugindocs`, and `tfproviderdocs` versions are pinned at
+the top of the Makefile. `make tools` installs those exact versions into
+`./bin/`. CI uses the same versions, so a green `make pr` locally means a
+green CI run.
+
+### Adding a new command
+
+Don't add raw `go test ...` invocations to the README or your shell history.
+Add a Make target:
+
+```makefile
+.PHONY: new-thing
+new-thing: ## Do the new thing
+	go run ./cmd/...
+```
+
+The `## comment` is what shows up in `make help`. Keep it under 70 chars.
 
 ## Test layers
 

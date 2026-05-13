@@ -19,6 +19,8 @@ on:
 permissions:
   contents: read
 
+# All jobs invoke make targets so the local dev loop and CI run the same
+# commands. See Makefile for the full target list (or run `make help`).
 jobs:
   build:
     name: build
@@ -31,10 +33,49 @@ jobs:
           go-version-file: go.mod
           cache: true
       - run: go mod download
-      - run: go build -v ./...
+      - run: make build
+
+  fmtcheck:
+    name: gofmt
+    runs-on: ubuntu-latest
+    needs: build
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - run: make fmtcheck
+
+  vet:
+    name: go vet
+    runs-on: ubuntu-latest
+    needs: build
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - run: make vet
+
+  depscheck:
+    name: deps tidy
+    runs-on: ubuntu-latest
+    needs: build
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - run: make depscheck
 
   lint:
-    name: lint
+    name: golangci-lint
     runs-on: ubuntu-latest
     needs: build
     timeout-minutes: 10
@@ -44,9 +85,10 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
-      - uses: golangci/golangci-lint-action@v6
-        with:
-          version: v1.62.0
+      - run: make tools
+      - run: |
+          echo "$GITHUB_WORKSPACE/bin" >> "$GITHUB_PATH"
+      - run: make lint
 
   unit:
     name: unit tests
@@ -59,13 +101,17 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
-      - run: |
+      - name: Run unit tests with coverage
+        env:
+          COVERAGE_OUT: coverage-unit.out
+        run: |
           go test -race \
-            -coverprofile=coverage-unit.out \
+            -coverprofile="$COVERAGE_OUT" \
             -coverpkg=./internal/client/... \
-            ./internal/client/... \
+            -covermode=atomic \
             -count=1 \
-            -timeout 5m
+            -timeout 5m \
+            ./internal/client/...
       - uses: codecov/codecov-action@v4
         with:
           files: ./coverage-unit.out
@@ -96,15 +142,19 @@ jobs:
           terraform_version: ${{ matrix.terraform }}
           terraform_wrapper: false
       - run: go mod download
-      - env:
+      - name: Run acceptance tests with coverage
+        env:
           TF_ACC: "1"
+          COVERAGE_OUT: coverage-acc.out
         run: |
           go test \
-            -coverprofile=coverage-acc.out \
+            -coverprofile="$COVERAGE_OUT" \
             -coverpkg=./internal/... \
-            ./internal/provider/... \
+            -covermode=atomic \
             -count=1 \
-            -timeout 30m
+            -parallel 4 \
+            -timeout 30m \
+            ./internal/provider/...
       - uses: codecov/codecov-action@v4
         if: matrix.terraform == '1.10.*'
         with:
@@ -114,7 +164,7 @@ jobs:
           fail_ci_if_error: false
 
   docs:
-    name: docs are committed
+    name: docscheck
     runs-on: ubuntu-latest
     needs: build
     timeout-minutes: 10
@@ -124,15 +174,4 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
-      - run: go generate ./...
-      - name: Verify docs/ is clean
-        run: |
-          if ! git diff --exit-code -- docs/; then
-            echo "::error::docs/ is out of date. Run 'make docs' and commit the result."
-            exit 1
-          fi
-      - name: Validate doc structure (tfproviderdocs)
-        run: |
-          go run github.com/bflad/tfproviderdocs check \
-            -provider-name claude-managed-agents \
-            ./
+      - run: make docscheck

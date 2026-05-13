@@ -4,6 +4,9 @@ terraform-provider-claude-managed-agents
 # Built provider binaries for local install
 dist/
 
+# Local dev tooling installed by `make tools`
+bin/
+
 # Test artifacts
 *.test
 *.out

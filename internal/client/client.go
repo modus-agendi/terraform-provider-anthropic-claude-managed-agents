@@ -179,4 +179,3 @@ func redactMap(m map[string]any) {
 		}
 	}
 }
-

@@ -196,12 +196,12 @@ func (f *fakeAPI) get(w http.ResponseWriter, id string) {
 
 func (f *fakeAPI) update(w http.ResponseWriter, r *http.Request, id string) {
 	var body struct {
-		Version     int                `json:"version"`
-		Name        *string            `json:"name"`
-		Model       any                `json:"model"`
-		System      json.RawMessage    `json:"system"`
-		Description json.RawMessage    `json:"description"`
-		Metadata    map[string]string  `json:"metadata"`
+		Version     int               `json:"version"`
+		Name        *string           `json:"name"`
+		Model       any               `json:"model"`
+		System      json.RawMessage   `json:"system"`
+		Description json.RawMessage   `json:"description"`
+		Metadata    map[string]string `json:"metadata"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeAPIErr(w, http.StatusBadRequest, "invalid_request_error", err.Error())
@@ -292,7 +292,7 @@ func (f *fakeAPI) list(w http.ResponseWriter, r *http.Request) {
 func writeAPIErr(w http.ResponseWriter, status int, typ, msg string) {
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(map[string]any{
-		"type": "error",
+		"type":  "error",
 		"error": map[string]any{"type": typ, "message": msg},
 	})
 }
