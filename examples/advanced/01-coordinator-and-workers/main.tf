@@ -51,8 +51,7 @@ resource "claude-managed-agents_agent" "doc_writer" {
   }
 }
 
-# Coordinator: routes tasks across the three workers. `self` is included
-# so the coordinator can answer simple requests without delegation.
+# Coordinator: routes tasks across the three workers.
 resource "claude-managed-agents_agent" "tech_lead" {
   name   = "Tech Lead Coordinator"
   model  = "claude-opus-4-7"
@@ -64,7 +63,6 @@ resource "claude-managed-agents_agent" "tech_lead" {
       { type = "agent", id = claude-managed-agents_agent.implementer.id },
       { type = "agent", id = claude-managed-agents_agent.reviewer.id },
       { type = "agent", id = claude-managed-agents_agent.doc_writer.id },
-      { type = "self" },
     ]
   }
 }

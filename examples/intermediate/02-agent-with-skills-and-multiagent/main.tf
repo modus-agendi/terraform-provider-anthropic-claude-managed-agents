@@ -37,7 +37,6 @@ resource "claude-managed-agents_agent" "research_lead" {
     type = "coordinator"
     agents = [
       { type = "agent", id = claude-managed-agents_agent.analyst.id },
-      { type = "self" },
     ]
   }
 }

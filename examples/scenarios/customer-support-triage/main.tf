@@ -143,7 +143,6 @@ resource "claude-managed-agents_agent" "shift_lead" {
     agents = [
       { type = "agent", id = claude-managed-agents_agent.triage.id },
       { type = "agent", id = claude-managed-agents_agent.investigator.id },
-      { type = "self" },
     ]
   }
 }
