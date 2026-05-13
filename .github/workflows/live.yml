@@ -1,0 +1,58 @@
+name: live
+
+on:
+  workflow_dispatch:
+    inputs:
+      sweep_only:
+        description: "If true, only run the sweeper (do not run live tests)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  live:
+    name: live acceptance + sweep
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      TF_ACC: "1"
+      TF_ACC_LIVE: "1"
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.10.*"
+          terraform_wrapper: false
+      - run: go mod download
+
+      - name: Pre-run sweep (clear orphans older than 1h)
+        run: |
+          go test ./internal/provider/... \
+            -v \
+            -sweep=anthropic \
+            -sweep-run=claude-managed-agents_agent \
+            -timeout 10m
+
+      - name: Live acceptance tests
+        if: ${{ !inputs.sweep_only }}
+        run: |
+          go test ./internal/provider/... \
+            -count=1 \
+            -timeout 25m
+
+      - name: Post-run sweep (best-effort cleanup)
+        if: always() && !inputs.sweep_only
+        run: |
+          go test ./internal/provider/... \
+            -v \
+            -sweep=anthropic \
+            -sweep-run=claude-managed-agents_agent \
+            -sweep-allow-failures \
+            -timeout 10m

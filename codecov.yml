@@ -1,0 +1,25 @@
+codecov:
+  notify:
+    require_ci_to_pass: true
+
+coverage:
+  precision: 1
+  round: down
+  status:
+    project:
+      default:
+        target: 70%
+        threshold: 1%
+    patch:
+      default:
+        target: 75%
+        threshold: 0%
+
+ignore:
+  - "internal/provider/testutil_test.go"
+  - "internal/provider/acceptance_helpers_test.go"
+  - "internal/provider/sweep_test.go"
+  - "examples/**"
+  - "tools/**"
+  - "main.go"
+  - "generate.go"
