@@ -7,11 +7,13 @@ on:
         description: "If true, only run the sweeper (do not run live tests)"
         type: boolean
         default: false
-  # Weekly drift detection. Runs Monday 03:00 UTC. The pre/post sweeper
-  # cleans up resources older than 1h with the tf-acc-test- prefix, so
-  # the cost is bounded.
+  # Nightly drift detection. Runs at 03:00 UTC every day to surface
+  # divergences between the L2 fake API fixture and the real Anthropic
+  # API as soon as they appear, rather than waiting for the next release.
+  # The pre/post sweeper cleans up resources older than 1h with the
+  # tf-acc-test- prefix, so cost stays bounded even on consecutive runs.
   schedule:
-    - cron: "0 3 * * 1"
+    - cron: "0 3 * * *"
 
 permissions:
   contents: read
