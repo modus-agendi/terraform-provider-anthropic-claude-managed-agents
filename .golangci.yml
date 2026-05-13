@@ -5,17 +5,51 @@ run:
 linters:
   disable-all: true
   enable:
+    - bodyclose
     - errcheck
+    - errorlint
+    - gocritic
+    - gosec
     - gosimple
     - govet
     - ineffassign
     - misspell
+    - nilerr
+    - revive
     - staticcheck
     - unconvert
     - unused
+
+linters-settings:
+  gosec:
+    excludes:
+      # math/rand in tests is fine (G404). We use crypto/rand in production code.
+      - G404
+      # File inclusion via variable (G304) - we don't read user-supplied paths.
+      - G304
+  revive:
+    rules:
+      - name: var-naming
+      - name: exported
+        disabled: true
+      - name: package-comments
+        disabled: true
+  errcheck:
+    # The test helpers intentionally ignore errors on response writes.
+    exclude-functions:
+      - (net/http.ResponseWriter).Write
+      - (encoding/json.Encoder).Encode
 
 issues:
   exclude-rules:
     - path: _test\.go
       linters:
         - errcheck
+        - gosec
+        - bodyclose
+        - gocritic
+        - errorlint
+    - path: internal/provider/testutil_test.go
+      linters:
+        - revive
+        - gocritic

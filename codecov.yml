@@ -1,0 +1,28 @@
+codecov:
+  notify:
+    require_ci_to_pass: true
+
+coverage:
+  precision: 1
+  round: down
+  status:
+    project:
+      default:
+        # Aspirational total target. We currently sit at ~85% — see CLAUDE.md
+        # "Coverage target". A small threshold absorbs noise from refactors.
+        target: 85%
+        threshold: 1%
+    patch:
+      default:
+        # New code in a PR must hit the target. No slack on patch coverage.
+        target: 85%
+        threshold: 0%
+
+ignore:
+  - "internal/provider/testutil_test.go"
+  - "internal/provider/acceptance_helpers_test.go"
+  - "internal/provider/sweep_test.go"
+  - "examples/**"
+  - "tools/**"
+  - "main.go"
+  - "generate.go"

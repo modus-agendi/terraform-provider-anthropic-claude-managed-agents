@@ -201,3 +201,76 @@ func TestListAgents_PassesQueryParams(t *testing.T) {
 		t.Errorf("HasMore = true, want false")
 	}
 }
+
+func TestListAgents_PaginationLoop(t *testing.T) {
+	// Server returns two pages: the first sets has_more=true with last_id="agent_FIRST10",
+	// then on the cursor-second call returns has_more=false. Verifies the caller can
+	// loop until exhaustion using the LastID field.
+	page1 := `{
+		"data": [{"id":"agent_FIRST1","name":"a","model":{"id":"x"},"version":1,"metadata":{}, "created_at":"2026-05-13T00:00:00Z", "updated_at":"2026-05-13T00:00:00Z", "archived_at":null}],
+		"has_more": true,
+		"first_id": "agent_FIRST1",
+		"last_id":  "agent_FIRST10"
+	}`
+	page2 := `{
+		"data": [{"id":"agent_SECOND1","name":"b","model":{"id":"x"},"version":1,"metadata":{}, "created_at":"2026-05-13T00:00:00Z", "updated_at":"2026-05-13T00:00:00Z", "archived_at":null}],
+		"has_more": false,
+		"first_id": "agent_SECOND1",
+		"last_id":  "agent_SECOND10"
+	}`
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		if r.URL.Query().Get("after_id") == "agent_FIRST10" {
+			_, _ = w.Write([]byte(page2))
+			return
+		}
+		_, _ = w.Write([]byte(page1))
+	}))
+	defer srv.Close()
+
+	c := newTestClient(t, srv)
+	var all []Agent
+	cursor := ""
+	for {
+		page, err := c.ListAgents(context.Background(), ListAgentsParams{Limit: 100, AfterID: cursor})
+		if err != nil {
+			t.Fatalf("ListAgents: %v", err)
+		}
+		all = append(all, page.Data...)
+		if !page.HasMore {
+			break
+		}
+		cursor = page.LastID
+	}
+
+	if len(all) != 2 {
+		t.Fatalf("got %d agents, want 2", len(all))
+	}
+	if all[0].ID != "agent_FIRST1" || all[1].ID != "agent_SECOND1" {
+		t.Errorf("ids = [%s, %s]", all[0].ID, all[1].ID)
+	}
+}
+
+func TestArchiveAgent_404TreatedAsAPIError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte(`{"type":"error","error":{"type":"not_found_error","message":"missing"}}`))
+	}))
+	defer srv.Close()
+
+	c := newTestClient(t, srv)
+	err := c.ArchiveAgent(context.Background(), "agent_gone")
+	if !IsNotFound(err) {
+		t.Errorf("want IsNotFound, got %v", err)
+	}
+}
+
+func TestArchiveAgent_RequiresID(t *testing.T) {
+	c, err := New(Config{APIKey: "sk-test"})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	if err := c.ArchiveAgent(context.Background(), ""); err == nil {
+		t.Error("expected error for empty id")
+	}
+}

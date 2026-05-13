@@ -8,6 +8,7 @@ dist/
 *.test
 *.out
 coverage.txt
+coverage.html
 
 # Terraform state from acceptance scratch dirs
 *.tfstate
