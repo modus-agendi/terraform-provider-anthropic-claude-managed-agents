@@ -79,6 +79,48 @@ func (r *agentResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 				MarkdownDescription: "ISO 8601 timestamp when the agent was archived, or `null` if active. `terraform destroy` issues an archive call against this resource.",
 				Computed:            true,
 			},
+			"mcp_servers": schema.ListNestedAttribute{
+				MarkdownDescription: "MCP servers the agent may connect to at session runtime. Mutable. Sending an empty list clears server-side state.",
+				Optional:            true,
+				Computed:            true,
+				NestedObject: schema.NestedAttributeObject{
+					Attributes: map[string]schema.Attribute{
+						"type": schema.StringAttribute{Required: true, MarkdownDescription: "Currently only `url`."},
+						"name": schema.StringAttribute{Required: true, MarkdownDescription: "Logical name. Referenced by `tools[mcp_toolset].mcp_server_name`."},
+						"url":  schema.StringAttribute{Required: true, MarkdownDescription: "Server URL."},
+					},
+				},
+			},
+			"skills": schema.ListNestedAttribute{
+				MarkdownDescription: "Skills the agent has access to. Mutable.",
+				Optional:            true,
+				Computed:            true,
+				NestedObject: schema.NestedAttributeObject{
+					Attributes: map[string]schema.Attribute{
+						"type":     schema.StringAttribute{Required: true, MarkdownDescription: "`anthropic` for pre-built skills or `custom` for user-uploaded skills."},
+						"skill_id": schema.StringAttribute{Required: true, MarkdownDescription: "For `anthropic`: short name (e.g. `xlsx`). For `custom`: `skill_*` id."},
+						"version":  schema.StringAttribute{Optional: true, Computed: true, MarkdownDescription: "Version selector for `custom` skills. Defaults server-side to `latest`."},
+					},
+				},
+			},
+			"multiagent": schema.SingleNestedAttribute{
+				MarkdownDescription: "Multi-agent coordinator config. Mutable. Set to null to clear.",
+				Optional:            true,
+				Computed:            true,
+				Attributes: map[string]schema.Attribute{
+					"type": schema.StringAttribute{Required: true, MarkdownDescription: "Currently only `coordinator`."},
+					"agents": schema.ListNestedAttribute{
+						MarkdownDescription: "Members of the coordinator's roster.",
+						Required:            true,
+						NestedObject: schema.NestedAttributeObject{
+							Attributes: map[string]schema.Attribute{
+								"type": schema.StringAttribute{Required: true, MarkdownDescription: "`agent` to reference another agent, or `self` for self-delegation."},
+								"id":   schema.StringAttribute{Optional: true, MarkdownDescription: "Agent id (`agent_*`). Required when `type = \"agent\"`; must be omitted when `type = \"self\"`."},
+							},
+						},
+					},
+				},
+			},
 		},
 	}
 }
@@ -121,6 +163,18 @@ func (r *agentResource) Create(ctx context.Context, req resource.CreateRequest, 
 			return
 		}
 		apiReq.Metadata = m
+	}
+	mcps, d := mcpServersListToAPI(ctx, plan.McpServers)
+	resp.Diagnostics.Append(d...)
+	apiReq.McpServers = mcps
+	skills, d := skillsListToAPI(ctx, plan.Skills)
+	resp.Diagnostics.Append(d...)
+	apiReq.Skills = skills
+	multi, d := multiagentToAPI(ctx, plan.Multiagent)
+	resp.Diagnostics.Append(d...)
+	apiReq.Multiagent = multi
+	if resp.Diagnostics.HasError() {
+		return
 	}
 
 	agent, err := r.client.CreateAgent(ctx, apiReq)
@@ -191,6 +245,38 @@ func (r *agentResource) Update(ctx context.Context, req resource.UpdateRequest, 
 			return
 		}
 		updateReq.Metadata = merged
+	}
+	if !plan.McpServers.Equal(state.McpServers) {
+		mcps, d := mcpServersListToAPI(ctx, plan.McpServers)
+		resp.Diagnostics.Append(d...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+		// Send an explicit (possibly empty) list — nil means "leave
+		// unchanged"; an empty list means "clear".
+		if mcps == nil {
+			mcps = []client.McpServer{}
+		}
+		updateReq.McpServers = &mcps
+	}
+	if !plan.Skills.Equal(state.Skills) {
+		skills, d := skillsListToAPI(ctx, plan.Skills)
+		resp.Diagnostics.Append(d...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+		if skills == nil {
+			skills = []client.Skill{}
+		}
+		updateReq.Skills = &skills
+	}
+	if !plan.Multiagent.Equal(state.Multiagent) {
+		multi, d := multiagentToAPI(ctx, plan.Multiagent)
+		resp.Diagnostics.Append(d...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+		updateReq.Multiagent = multi
 	}
 
 	agent, err := r.client.UpdateAgent(ctx, state.ID.ValueString(), updateReq)

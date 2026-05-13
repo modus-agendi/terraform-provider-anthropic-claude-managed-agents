@@ -40,6 +40,18 @@ func agentFromAPI(ctx context.Context, a *client.Agent, diags *diag.Diagnostics)
 	diags.Append(d...)
 	m.Metadata = mdMap
 
+	mcps, d := mcpServersListFromAPI(ctx, a.McpServers)
+	diags.Append(d...)
+	m.McpServers = mcps
+
+	skills, d := skillsListFromAPI(ctx, a.Skills)
+	diags.Append(d...)
+	m.Skills = skills
+
+	multi, d := multiagentFromAPI(ctx, a.Multiagent)
+	diags.Append(d...)
+	m.Multiagent = multi
+
 	return m
 }
 

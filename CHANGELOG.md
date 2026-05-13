@@ -6,6 +6,25 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+- `claude-managed-agents_agent` resource and data source now expose three
+  of the four nested-config fields as first-class HCL:
+  - `mcp_servers` (list of `{type, name, url}`) — MCP server roster.
+  - `skills` (list of `{type, skill_id, version}`) — both `anthropic`
+    pre-built skills and `custom` user-uploaded skills.
+  - `multiagent` (single nested `{type, agents}`) — coordinator config
+    with `agent` and `self` member types.
+- Existing v0.1 agents that have server-side state in these fields will
+  see Terraform plan to set them on the next refresh. Adding the matching
+  HCL declaration is a no-op.
+
+### Note
+- The fourth nested field (`tools`) is intentionally not yet first-class
+  in HCL. The provider continues to round-trip server-side tool config
+  through `json.RawMessage` so users who configure it via the API are
+  not clobbered by Terraform updates. First-class HCL for `tools` (with
+  permission policies and custom-tool input schemas) lands in a follow-up.
+
 ### Changed (BREAKING)
 - Minimum Terraform raised to **1.11** (OpenTofu 1.8). The provider now uses
   TF 1.11 write-only attributes for the four secret-bearing fields on

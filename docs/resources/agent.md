@@ -47,6 +47,29 @@ resource "claude-managed-agents_agent" "coding_assistant" {
     team        = "platform"
     environment = "prod"
   }
+
+  mcp_servers = [
+    { type = "url", name = "github", url = "https://mcp.example.com/github" },
+  ]
+
+  skills = [
+    { type = "anthropic", skill_id = "xlsx" },
+    { type = "custom", skill_id = "skill_abc123", version = "latest" },
+  ]
+}
+
+# Coordinator that delegates to the assistant above.
+resource "claude-managed-agents_agent" "lead" {
+  name  = "Engineering Lead"
+  model = "claude-opus-4-7"
+
+  multiagent = {
+    type = "coordinator"
+    agents = [
+      { type = "agent", id = claude-managed-agents_agent.coding_assistant.id },
+      { type = "self" },
+    ]
+  }
 }
 
 output "agent_id" {
@@ -69,7 +92,10 @@ output "agent_version" {
 ### Optional
 
 - `description` (String) Free-form description. Optional. Set to `null` to clear.
+- `mcp_servers` (Attributes List) MCP servers the agent may connect to at session runtime. Mutable. Sending an empty list clears server-side state. (see [below for nested schema](#nestedatt--mcp_servers))
 - `metadata` (Map of String) Arbitrary string-string labels. Merged at the key level on update: removing a key from your HCL causes the provider to send an empty-string value for that key, which the API treats as a delete.
+- `multiagent` (Attributes) Multi-agent coordinator config. Mutable. Set to null to clear. (see [below for nested schema](#nestedatt--multiagent))
+- `skills` (Attributes List) Skills the agent has access to. Mutable. (see [below for nested schema](#nestedatt--skills))
 - `system` (String) System prompt for the agent. Optional. Set to `null` to clear.
 
 ### Read-Only
@@ -79,6 +105,49 @@ output "agent_version" {
 - `id` (String) Server-assigned identifier (e.g. `agent_01ABC...`). Use this value with `terraform import`.
 - `updated_at` (String) ISO 8601 timestamp of the most recent change.
 - `version` (Number) Server-managed monotonic version. Used internally for optimistic concurrency on update.
+
+<a id="nestedatt--mcp_servers"></a>
+### Nested Schema for `mcp_servers`
+
+Required:
+
+- `name` (String) Logical name. Referenced by `tools[mcp_toolset].mcp_server_name`.
+- `type` (String) Currently only `url`.
+- `url` (String) Server URL.
+
+
+<a id="nestedatt--multiagent"></a>
+### Nested Schema for `multiagent`
+
+Required:
+
+- `agents` (Attributes List) Members of the coordinator's roster. (see [below for nested schema](#nestedatt--multiagent--agents))
+- `type` (String) Currently only `coordinator`.
+
+<a id="nestedatt--multiagent--agents"></a>
+### Nested Schema for `multiagent.agents`
+
+Required:
+
+- `type` (String) `agent` to reference another agent, or `self` for self-delegation.
+
+Optional:
+
+- `id` (String) Agent id (`agent_*`). Required when `type = "agent"`; must be omitted when `type = "self"`.
+
+
+
+<a id="nestedatt--skills"></a>
+### Nested Schema for `skills`
+
+Required:
+
+- `skill_id` (String) For `anthropic`: short name (e.g. `xlsx`). For `custom`: `skill_*` id.
+- `type` (String) `anthropic` for pre-built skills or `custom` for user-uploaded skills.
+
+Optional:
+
+- `version` (String) Version selector for `custom` skills. Defaults server-side to `latest`.
 
 ## Import
 

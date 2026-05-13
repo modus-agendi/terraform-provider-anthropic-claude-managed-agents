@@ -36,7 +36,8 @@ This provider lets you put that configuration under Terraform so you can:
 | Data source `claude-managed-agents_vault_credential` | yes (unreleased) | — |
 | Resource `claude-managed-agents_memory_store` | yes (unreleased) | — |
 | Data source `claude-managed-agents_memory_store` | yes (unreleased) | — |
-| Nested blocks on agent (`tools`, `mcp_servers`, `skills`, `multiagent`) | server-side state preserved as raw JSON | exposed as HCL in v0.3+ |
+| Nested blocks on agent (`mcp_servers`, `skills`, `multiagent`) | yes (unreleased) | — |
+| Nested blocks on agent (`tools`) | server-side state preserved as raw JSON | exposed as HCL in v0.3+ |
 | Data sources for skills, files, agent versions | — | follow-up |
 
 If you set `tools`, `mcp_servers`, `skills`, or `multiagent` on an agent via the API directly, the provider will preserve those server-side values through Terraform updates of other fields. They just aren't editable from HCL in v0.1.
