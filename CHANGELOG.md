@@ -6,6 +6,18 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-05-13
+
+### Fixed
+- **CI / release**: SLSA L3 provenance generator job was aborting with
+  "Repository is private" on this public repo due to a detection edge case.
+  Added `private-repository: true` to the reusable workflow call; the flag
+  acknowledges that the repo name appears in the Sigstore public
+  transparency log (which is fine for a public repo). v0.2.0 artifacts
+  were released correctly (GPG-signed checksums + manifest); only the
+  provenance attestation was missing. v0.2.1 re-releases the same code
+  with provenance attached.
+
 ## [0.2.0] - 2026-05-13
 
 ### Fixed
@@ -150,6 +162,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   httptest server by default; live API runs are opt-in via `TF_ACC_LIVE=1`).
 - GitHub Actions workflows for CI and release.
 
-[Unreleased]: https://github.com/andasv/terraform-provider-claude-managed-agents/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/andasv/terraform-provider-claude-managed-agents/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/andasv/terraform-provider-claude-managed-agents/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/andasv/terraform-provider-claude-managed-agents/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/andasv/terraform-provider-claude-managed-agents/releases/tag/v0.1.0

@@ -106,6 +106,11 @@ jobs:
   # artifact. Consumers verify with `slsa-verifier verify-artifact`. Uses
   # the dedicated reusable workflow which runs in an isolated job that the
   # release job cannot tamper with.
+  #
+  # `private-repository: true` is set because the generator's repo-visibility
+  # detection mis-reads this public repo as private and aborts. The flag's
+  # only effect is acknowledging that the repo name will appear in the
+  # Sigstore public transparency log — fine here, the repo IS public.
   provenance:
     needs: release
     permissions:
@@ -116,3 +121,4 @@ jobs:
     with:
       base64-subjects: ${{ needs.release.outputs.hashes }}
       upload-assets: true
+      private-repository: true
