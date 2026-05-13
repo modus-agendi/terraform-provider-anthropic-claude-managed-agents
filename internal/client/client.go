@@ -23,8 +23,23 @@ const (
 	defaultBaseURL    = "https://api.anthropic.com"
 	apiVersionHeader  = "2023-06-01"
 	managedAgentsBeta = "managed-agents-2026-04-01"
+	skillsBeta        = "skills-2025-10-02"
 	logSubsystem      = "client"
 )
+
+// headerOverride lets callers replace or augment the default request headers
+// for a single call. Used to swap the `anthropic-beta` value on the skill
+// endpoints (which speak `skills-2025-10-02` rather than the managed-agents
+// beta). The override is applied after the defaults via `Set`, so it always
+// wins.
+type headerOverride struct {
+	name  string
+	value string
+}
+
+func withHeader(name, value string) headerOverride {
+	return headerOverride{name: name, value: value}
+}
 
 // Client is the HTTP transport for the Managed Agents API.
 type Client struct {
@@ -80,8 +95,9 @@ func (c *Client) BaseURL() string { return c.baseURL }
 
 // do executes an HTTP request, retrying transient failures. body may be nil
 // for requests without a payload. out may be nil for endpoints that return no
-// content of interest.
-func (c *Client) do(ctx context.Context, method, path string, body, out any) error {
+// content of interest. extra header overrides are applied after the default
+// header set via `Set`, so they win on conflict.
+func (c *Client) do(ctx context.Context, method, path string, body, out any, extra ...headerOverride) error {
 	var bodyBytes []byte
 	if body != nil {
 		var err error
@@ -90,14 +106,45 @@ func (c *Client) do(ctx context.Context, method, path string, body, out any) err
 			return fmt.Errorf("client: marshal request body: %w", err)
 		}
 	}
+	return c.doRaw(ctx, method, path, bodyBytes, "application/json", redactJSON(bodyBytes), out, extra...)
+}
 
+// doMultipart executes a multipart/form-data POST. The body is already
+// encoded by the caller (see buildSkillMultipart). The body is intentionally
+// NOT routed through redactJSON — multipart payloads contain raw file bytes
+// that should never be logged in full. A structured summary is emitted
+// instead (size + content type).
+func (c *Client) doMultipart(ctx context.Context, method, path string, body []byte, contentType string, summary map[string]any, out any, extra ...headerOverride) error {
+	// Emit a separate structured summary so operators can correlate the
+	// multipart upload with the response log without seeing the file bytes.
+	logFields := map[string]any{
+		"method":                 method,
+		"endpoint":               c.baseURL + path,
+		"multipart_size_bytes":   len(body),
+		"multipart_content_type": contentType,
+	}
+	for k, v := range summary {
+		logFields[k] = v
+	}
+	tflog.SubsystemDebug(ctx, logSubsystem, "multipart request", logFields)
+	return c.doRaw(ctx, method, path, body, contentType, "<multipart redacted>", out, extra...)
+}
+
+// doRaw is the shared low-level path. It is not called directly by API
+// methods; use `do` (JSON) or `doMultipart` (multipart) instead.
+func (c *Client) doRaw(ctx context.Context, method, path string, bodyBytes []byte, contentType, redactedBody string, out any, extra ...headerOverride) error {
 	endpoint := c.baseURL + path
 
-	tflog.SubsystemDebug(ctx, logSubsystem, "request", map[string]any{
-		"method":   method,
-		"endpoint": endpoint,
-		"body":     redactJSON(bodyBytes),
-	})
+	// For JSON requests we log the redacted body inline; multipart requests
+	// already emitted a separate summary record, so we skip the body field
+	// here to avoid noise.
+	if contentType == "application/json" {
+		tflog.SubsystemDebug(ctx, logSubsystem, "request", map[string]any{
+			"method":   method,
+			"endpoint": endpoint,
+			"body":     redactedBody,
+		})
+	}
 
 	req, err := retryablehttp.NewRequestWithContext(ctx, method, endpoint, bytes.NewReader(bodyBytes))
 	if err != nil {
@@ -106,9 +153,12 @@ func (c *Client) do(ctx context.Context, method, path string, body, out any) err
 	req.Header.Set("x-api-key", c.apiKey)
 	req.Header.Set("anthropic-version", apiVersionHeader)
 	req.Header.Set("anthropic-beta", managedAgentsBeta)
-	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Content-Type", contentType)
 	if c.userAgent != "" {
 		req.Header.Set("User-Agent", c.userAgent)
+	}
+	for _, h := range extra {
+		req.Header.Set(h.name, h.value)
 	}
 
 	resp, err := c.httpClient.Do(req)
