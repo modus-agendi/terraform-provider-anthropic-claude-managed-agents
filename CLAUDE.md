@@ -201,6 +201,12 @@ gotchas when someone has the branch checked out.
 
 ## Bias toward …
 
+- **Make targets, not raw shell.** Every developer-facing command lives in
+  the Makefile with a `## comment` so `make help` is the discovery surface.
+  CI calls the same targets — local + CI parity. Don't paste `go test …` in
+  CONTRIBUTING.md or the README; add a Make target instead. Tooling
+  versions are pinned at the top of the Makefile, installed by `make tools`
+  into `./bin/`.
 - **Simple HTTP and stdlib.** Hand-rolled `net/http` via `retryablehttp`
   beats any code-gen client for a single-purpose provider. Resist adding a
   full SDK.
@@ -215,8 +221,6 @@ gotchas when someone has the branch checked out.
 
 ## Bias against …
 
-- **Coverage chasing.** If you can't write a test that asserts a real
-  behavior, the line stays red.
 - **Schema fields the API doesn't surface.** Don't add fake validation
   attributes hoping for niceness. Surface API errors as-is.
 - **Conditional logic in tests.** If you need an `if liveMode()` branch
