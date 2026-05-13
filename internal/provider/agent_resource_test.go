@@ -259,6 +259,77 @@ func TestAccAgentResource_driftRefresh(t *testing.T) {
 	})
 }
 
+// TestAccAgentResource_destroyMissing exercises the Delete code path when
+// the agent has already been removed server-side: archive returns 404, and
+// Delete must swallow that error so terraform destroy completes cleanly.
+func TestAccAgentResource_destroyMissing(t *testing.T) {
+	if os.Getenv("TF_ACC") == "" {
+		t.Skip("set TF_ACC=1 to run acceptance tests")
+	}
+	if liveMode() {
+		t.Skip("destroy-while-missing simulation requires the in-process fake API")
+	}
+
+	api, cleanup := startFakeAPI(t)
+	defer cleanup()
+
+	name := testAgentName("destroy-missing")
+	cfg := agentResourceConfig("a", name, "")
+
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			// 1. Create.
+			{Config: cfg},
+			// 2. Out-of-band delete + reduce config to just the provider block.
+			//    The auto-destroy of the agent will then encounter 404, which
+			//    the resource's Delete must treat as already-gone.
+			{
+				PreConfig: func() { api.DeleteAllAgents() },
+				Config:    providerConfig(),
+			},
+		},
+	})
+}
+
+// TestAccAgentResource_readRemovedExternally exercises the Read 404 path:
+// the agent vanishes server-side, Read must call RemoveResource so the
+// next plan re-creates it.
+func TestAccAgentResource_readRemovedExternally(t *testing.T) {
+	if os.Getenv("TF_ACC") == "" {
+		t.Skip("set TF_ACC=1 to run acceptance tests")
+	}
+	if liveMode() {
+		t.Skip("external-removal simulation requires the in-process fake API")
+	}
+
+	api, cleanup := startFakeAPI(t)
+	defer cleanup()
+
+	name := testAgentName("read-removed")
+	cfg := agentResourceConfig("a", name, "")
+
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{Config: cfg},
+			{
+				PreConfig: func() { api.DeleteAllAgents() },
+				Config:    cfg,
+				// Read clears state; the next plan shows a Create for the resource.
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction(
+							"claude-managed-agents_agent.a",
+							plancheck.ResourceActionCreate,
+						),
+					},
+				},
+			},
+		},
+	})
+}
+
 func TestAccAgentResource_invalidEmptyName(t *testing.T) {
 	if os.Getenv("TF_ACC") == "" {
 		t.Skip("set TF_ACC=1 to run acceptance tests")

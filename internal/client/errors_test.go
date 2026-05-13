@@ -85,6 +85,30 @@ func TestAPIError_String(t *testing.T) {
 	}
 }
 
+func TestAPIError_NoRequestID(t *testing.T) {
+	e := &APIError{
+		StatusCode: 500,
+		Type:       "api_error",
+		Message:    "boom",
+	}
+	got := e.Error()
+	if contains(got, "request_id=") {
+		t.Errorf("Error() should omit request_id when empty; got %q", got)
+	}
+	for _, want := range []string{"500", "api_error", "boom"} {
+		if !contains(got, want) {
+			t.Errorf("Error() = %q, missing %q", got, want)
+		}
+	}
+}
+
+func TestAPIError_Nil(t *testing.T) {
+	var e *APIError
+	if got := e.Error(); got != "<nil>" {
+		t.Errorf("nil APIError Error() = %q, want <nil>", got)
+	}
+}
+
 func contains(haystack, needle string) bool {
 	return len(needle) == 0 || (len(haystack) >= len(needle) && stringIndex(haystack, needle) >= 0)
 }

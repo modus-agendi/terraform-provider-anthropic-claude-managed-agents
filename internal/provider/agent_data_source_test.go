@@ -2,10 +2,35 @@ package provider
 
 import (
 	"os"
+	"regexp"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 )
+
+// TestAccAgentDataSource_notFound exercises the 404 path in the data source
+// Read: an explicit "agent not found" diagnostic should surface to the user.
+func TestAccAgentDataSource_notFound(t *testing.T) {
+	if os.Getenv("TF_ACC") == "" {
+		t.Skip("set TF_ACC=1 to run acceptance tests")
+	}
+
+	_, cleanup := startFakeAPI(t)
+	defer cleanup()
+
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: providerConfig() + `
+data "claude-managed-agents_agent" "missing" {
+  id = "agent_DOES_NOT_EXIST"
+}`,
+				ExpectError: regexp.MustCompile(`(?i)agent not found|no agent with id`),
+			},
+		},
+	})
+}
 
 func TestAccAgentDataSource_basic(t *testing.T) {
 	if os.Getenv("TF_ACC") == "" {

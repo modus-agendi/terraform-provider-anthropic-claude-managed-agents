@@ -81,6 +81,14 @@ func (f *fakeAPI) Snapshot(id string) *fakeAgent {
 	return &cp
 }
 
+// DeleteAllAgents wipes the agent map. Use to simulate an out-of-band deletion
+// before a Read or Delete step.
+func (f *fakeAPI) DeleteAllAgents() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.agents = map[string]*fakeAgent{}
+}
+
 func (f *fakeAPI) handler() http.Handler {
 	mux := http.NewServeMux()
 
