@@ -6,6 +6,15 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+- **Agent multiagent `self` entries**: real API rewrites `{type: "self"}`
+  members of `multiagent.agents` to `{type: "agent", id: <parent_agent_id>}`
+  on response. The provider now detects this by comparing each entry's id
+  to the parent agent's own id and normalizes back to `{type: "self",
+  id: null}`, eliminating the "Provider produced inconsistent result"
+  error on apply. The L2 fake API (`testutil_test.go`) mirrors the same
+  normalization so future regressions are caught without an L3 run.
+
 ### Fixed (live-API divergences caught by full smoke run)
 - **Environment**: provider no longer sends `allow_mcp_servers` /
   `allow_package_managers` when `networking.type = "unrestricted"`. Real

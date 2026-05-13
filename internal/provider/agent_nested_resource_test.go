@@ -159,16 +159,12 @@ func TestAccAgentResource_multiagent(t *testing.T) {
 	if os.Getenv("TF_ACC") == "" {
 		t.Skip("set TF_ACC=1 to run acceptance tests")
 	}
-	if liveMode() {
-		// Real API enriches `self` entries with the parent agent's id,
-		// effectively rewriting them into `{type: agent, id: <parent_id>}`.
-		// That breaks the plan/apply consistency check because the HCL
-		// declares `{type: self}` without an id. Provider can either
-		// suppress the id on read (already attempted) or accept the
-		// enrichment as drift. Deferred; the fake-API mode still
-		// exercises the round-trip mapping for both member types.
-		t.Skip("real API rewrites `self` entries with explicit ids; behaviour mismatch with plan")
-	}
+
+	// `self` entries are rewritten by the real API to `{type: "agent", id: <parent>}`.
+	// The provider detects this in agentFromAPI by comparing the entry id to
+	// the parent agent's own id and normalizing back to `{type: "self", id: null}`.
+	// Both fake (testutil_test.go normalizeMultiagentSelf) and live API now
+	// exercise the same code path.
 
 	_, cleanup := startFakeAPI(t)
 	defer cleanup()
@@ -206,6 +202,16 @@ resource "claude-managed-agents_agent" "lead" {
 					resource.TestCheckResourceAttr("claude-managed-agents_agent.lead", "multiagent.agents.0.type", "agent"),
 					resource.TestCheckResourceAttr("claude-managed-agents_agent.lead", "multiagent.agents.1.type", "self"),
 				),
+			},
+			{
+				// Re-apply the same config: there must be no drift even
+				// though the API rewrote the `self` entry on response.
+				Config: cfg,
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectEmptyPlan(),
+					},
+				},
 			},
 		},
 	})
