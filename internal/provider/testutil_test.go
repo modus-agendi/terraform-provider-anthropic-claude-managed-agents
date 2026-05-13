@@ -34,9 +34,12 @@ var testAccProtoV6ProviderFactories = map[string]func() (tfprotov6.ProviderServe
 // fakeAPI is a tiny in-memory stand-in for the Managed Agents API. It is good
 // enough to exercise CRUD + drift + import behavior without network access.
 type fakeAPI struct {
-	mu      sync.Mutex
-	agents  map[string]*fakeAgent
-	counter int
+	mu             sync.Mutex
+	agents         map[string]*fakeAgent
+	envs           map[string]*fakeEnvironment
+	envBlockDelete map[string]bool // ids for which DELETE should 409
+	counter        int
+	envCounter     int
 }
 
 type fakeAgent struct {
@@ -53,8 +56,50 @@ type fakeAgent struct {
 	ArchivedAt  *string           `json:"archived_at"`
 }
 
+type fakeEnvironment struct {
+	ID         string         `json:"id"`
+	Type       string         `json:"type"`
+	Name       string         `json:"name"`
+	Config     map[string]any `json:"config"`
+	CreatedAt  string         `json:"created_at"`
+	UpdatedAt  string         `json:"updated_at"`
+	ArchivedAt *string        `json:"archived_at"`
+}
+
 func newFakeAPI() *fakeAPI {
-	return &fakeAPI{agents: map[string]*fakeAgent{}}
+	return &fakeAPI{
+		agents:         map[string]*fakeAgent{},
+		envs:           map[string]*fakeEnvironment{},
+		envBlockDelete: map[string]bool{},
+	}
+}
+
+// BlockEnvDelete makes DELETE /v1/environments/{id} return 409 on the next
+// call, simulating "active sessions reference the environment".
+func (f *fakeAPI) BlockEnvDelete(id string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.envBlockDelete[id] = true
+}
+
+// SnapshotEnv returns a copy of the environment with id, or nil.
+func (f *fakeAPI) SnapshotEnv(id string) *fakeEnvironment {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	e, ok := f.envs[id]
+	if !ok {
+		return nil
+	}
+	cp := *e
+	return &cp
+}
+
+// DeleteAllEnvs wipes the environment map. Use to simulate an out-of-band
+// deletion before a Read step.
+func (f *fakeAPI) DeleteAllEnvs() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.envs = map[string]*fakeEnvironment{}
 }
 
 // MutateAgent runs f under lock so tests can simulate out-of-band edits to
@@ -129,7 +174,151 @@ func (f *fakeAPI) handler() http.Handler {
 		http.Error(w, "not found", http.StatusNotFound)
 	})
 
+	mux.HandleFunc("/v1/environments", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodPost:
+			f.envCreate(w, r)
+		case http.MethodGet:
+			f.envList(w, r)
+		default:
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+
+	envArchiveRe := regexp.MustCompile(`^/v1/environments/([^/]+)/archive$`)
+	envItemRe := regexp.MustCompile(`^/v1/environments/([^/]+)$`)
+
+	mux.HandleFunc("/v1/environments/", func(w http.ResponseWriter, r *http.Request) {
+		if m := envArchiveRe.FindStringSubmatch(r.URL.Path); m != nil {
+			if r.Method != http.MethodPost {
+				http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+				return
+			}
+			f.envArchive(w, m[1])
+			return
+		}
+		if m := envItemRe.FindStringSubmatch(r.URL.Path); m != nil {
+			switch r.Method {
+			case http.MethodGet:
+				f.envGet(w, m[1])
+			case http.MethodDelete:
+				f.envDelete(w, m[1])
+			default:
+				http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			}
+			return
+		}
+		http.Error(w, "not found", http.StatusNotFound)
+	})
+
 	return mux
+}
+
+func (f *fakeAPI) envCreate(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Name   string         `json:"name"`
+		Config map[string]any `json:"config"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeAPIErr(w, http.StatusBadRequest, "invalid_request_error", err.Error())
+		return
+	}
+	if body.Name == "" {
+		writeAPIErr(w, http.StatusBadRequest, "invalid_request_error", "name is required")
+		return
+	}
+	if body.Config == nil || body.Config["type"] == nil {
+		writeAPIErr(w, http.StatusBadRequest, "invalid_request_error", "config.type is required")
+		return
+	}
+	net, _ := body.Config["networking"].(map[string]any)
+	if net == nil || net["type"] == nil {
+		writeAPIErr(w, http.StatusBadRequest, "invalid_request_error", "config.networking.type is required")
+		return
+	}
+
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.envCounter++
+	now := time.Now().UTC().Format(time.RFC3339)
+	id := fmt.Sprintf("env_FAKE%04d", f.envCounter)
+	env := &fakeEnvironment{
+		ID:        id,
+		Type:      "environment",
+		Name:      body.Name,
+		Config:    body.Config,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+	f.envs[id] = env
+
+	w.Header().Set("request-id", "req_"+id)
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(env)
+}
+
+func (f *fakeAPI) envGet(w http.ResponseWriter, id string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	e, ok := f.envs[id]
+	if !ok {
+		writeAPIErr(w, http.StatusNotFound, "not_found_error", "no such environment")
+		return
+	}
+	w.Header().Set("request-id", "req_"+id)
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(e)
+}
+
+func (f *fakeAPI) envArchive(w http.ResponseWriter, id string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	e, ok := f.envs[id]
+	if !ok {
+		writeAPIErr(w, http.StatusNotFound, "not_found_error", "no such environment")
+		return
+	}
+	now := time.Now().UTC().Format(time.RFC3339)
+	e.ArchivedAt = &now
+	w.Header().Set("request-id", "req_"+id)
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(e)
+}
+
+func (f *fakeAPI) envDelete(w http.ResponseWriter, id string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if _, ok := f.envs[id]; !ok {
+		writeAPIErr(w, http.StatusNotFound, "not_found_error", "no such environment")
+		return
+	}
+	if f.envBlockDelete[id] {
+		writeAPIErr(w, http.StatusConflict, "conflict_error", "environment is referenced by active sessions")
+		return
+	}
+	delete(f.envs, id)
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(`{}`))
+}
+
+func (f *fakeAPI) envList(w http.ResponseWriter, r *http.Request) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	includeArchived := r.URL.Query().Get("include_archived") == "true"
+	out := struct {
+		Data    []*fakeEnvironment `json:"data"`
+		HasMore bool               `json:"has_more"`
+		FirstID string             `json:"first_id"`
+		LastID  string             `json:"last_id"`
+	}{Data: []*fakeEnvironment{}}
+	for _, e := range f.envs {
+		if e.ArchivedAt != nil && !includeArchived {
+			continue
+		}
+		out.Data = append(out.Data, e)
+	}
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(out)
 }
 
 func (f *fakeAPI) create(w http.ResponseWriter, r *http.Request) {

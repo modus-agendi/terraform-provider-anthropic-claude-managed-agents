@@ -6,6 +6,21 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+- Resource `claude-managed-agents_environment` for managing sandbox
+  environments (cloud config, package preinstall lists, and
+  unrestricted/limited networking policies). All attributes require
+  replacement on change: the upstream API has no environment update
+  endpoint.
+- Data source `claude-managed-agents_environment` for reading existing
+  environments by id.
+- `destroy` on `claude-managed-agents_environment` issues
+  `DELETE /v1/environments/{id}` first and falls back to
+  `POST /archive` if the API returns 409 (active session reference).
+- Sweeper for `claude-managed-agents_environment` that matches the
+  `tf-acc-test-` prefix and the 1-hour age threshold shared with the
+  agent sweeper.
+
 ## [0.1.0] - 2026-05-13
 
 ### Added
