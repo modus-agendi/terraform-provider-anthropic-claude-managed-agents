@@ -1,0 +1,51 @@
+name: Feature request
+description: Propose a new resource, data source, or attribute
+title: "feat: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before filing, check the [README scope table](../README.md#scope) —
+        some resources are deliberately deferred or out of scope (sessions,
+        dreams, webhooks). For those, please open a Discussion instead.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem are you trying to solve?
+      description: Describe the user-facing scenario, not the implementation.
+    validations:
+      required: true
+
+  - type: textarea
+    id: api
+    attributes:
+      label: Upstream API endpoints
+      description: |
+        Which Anthropic Managed Agents endpoints does this require? Link
+        to the relevant docs sections under
+        `docs/managed-agents/` in the upstream repo if you have them.
+    validations:
+      required: false
+
+  - type: textarea
+    id: hcl
+    attributes:
+      label: Proposed HCL surface
+      description: |
+        Sketch the resource / data source schema as you'd want to write it.
+      render: hcl
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: |
+        Why not solve this with existing resources, a `local-exec`
+        provisioner, or a separate tool?
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional context

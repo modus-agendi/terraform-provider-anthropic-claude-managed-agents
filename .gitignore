@@ -12,6 +12,8 @@ bin/
 *.out
 coverage.txt
 coverage.html
+coverage.out
+coverage-acc.out
 
 # Terraform state from acceptance scratch dirs
 *.tfstate

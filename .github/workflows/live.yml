@@ -21,14 +21,16 @@ jobs:
       TF_ACC_LIVE: "1"
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version-file: go.mod
           cache: true
-      - uses: hashicorp/setup-terraform@v4
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4
         with:
-          terraform_version: "1.10.*"
+          # Live runs on the documented minimum (1.11 introduced write-only
+          # attributes used by claude-managed-agents_vault_credential).
+          terraform_version: "1.11.*"
           terraform_wrapper: false
       - run: go mod download
 

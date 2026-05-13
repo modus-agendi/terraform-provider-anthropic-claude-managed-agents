@@ -1,0 +1,100 @@
+name: Bug report
+description: Report a defect in the provider
+title: "bug: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for filing a bug. Before submitting, please confirm:
+        - the issue is reproducible on the latest released provider version,
+        - the issue is in this provider (not Terraform/OpenTofu core, not the
+          upstream Anthropic API).
+
+        For security issues, please follow [SECURITY.md](../SECURITY.md)
+        instead of opening a public issue.
+
+  - type: input
+    id: provider_version
+    attributes:
+      label: Provider version
+      description: Output of `terraform providers` or the `version` constraint in your config.
+      placeholder: "0.2.0"
+    validations:
+      required: true
+
+  - type: input
+    id: terraform_version
+    attributes:
+      label: Terraform / OpenTofu version
+      description: Output of `terraform version` or `tofu version`.
+      placeholder: "Terraform v1.11.4"
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: "macOS 14.4 arm64"
+    validations:
+      required: true
+
+  - type: textarea
+    id: config
+    attributes:
+      label: Terraform configuration
+      description: |
+        Minimal HCL that reproduces the bug. Redact API keys before pasting.
+      render: hcl
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behaviour
+      description: |
+        Include the relevant Terraform error output. Run with
+        `TF_LOG=DEBUG` if you can — the API request ID we capture in errors
+        is very helpful for triage.
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. `terraform init`
+        2. `terraform apply`
+        3. ...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: tested
+    attributes:
+      label: Have you run the acceptance tests against your scenario?
+      options:
+        - "No"
+        - "Yes, fake API (TF_ACC=1)"
+        - "Yes, live API (TF_ACC_LIVE=1)"
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional context
+      description: |
+        Logs, screenshots, links to related issues, or anything else that
+        helps explain the problem.

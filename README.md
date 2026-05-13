@@ -2,6 +2,7 @@
 
 [![CI](https://github.com/andasv/terraform-provider-claude-managed-agents/actions/workflows/test.yml/badge.svg)](https://github.com/andasv/terraform-provider-claude-managed-agents/actions/workflows/test.yml)
 [![Release](https://github.com/andasv/terraform-provider-claude-managed-agents/actions/workflows/release.yml/badge.svg)](https://github.com/andasv/terraform-provider-claude-managed-agents/actions/workflows/release.yml)
+[![codecov](https://codecov.io/gh/andasv/terraform-provider-claude-managed-agents/graph/badge.svg)](https://codecov.io/gh/andasv/terraform-provider-claude-managed-agents)
 [![License: MPL 2.0](https://img.shields.io/badge/license-MPL%202.0-blue.svg)](https://www.mozilla.org/MPL/2.0/)
 
 A Terraform / OpenTofu provider for **Anthropic Claude Managed Agents** — declaratively manage agents, environments, vaults, and memory stores from Terraform configurations.
@@ -105,7 +106,17 @@ provider "claude-managed-agents" {
 | Kind | Name | Docs |
 |---|---|---|
 | Resource | `claude-managed-agents_agent` | [docs/resources/agent.md](docs/resources/agent.md) |
+| Resource | `claude-managed-agents_environment` | [docs/resources/environment.md](docs/resources/environment.md) |
+| Resource | `claude-managed-agents_memory_store` | [docs/resources/memory_store.md](docs/resources/memory_store.md) |
+| Resource | `claude-managed-agents_vault` | [docs/resources/vault.md](docs/resources/vault.md) |
+| Resource | `claude-managed-agents_vault_credential` | [docs/resources/vault_credential.md](docs/resources/vault_credential.md) |
 | Data source | `claude-managed-agents_agent` | [docs/data-sources/agent.md](docs/data-sources/agent.md) |
+| Data source | `claude-managed-agents_agent_version` | [docs/data-sources/agent_version.md](docs/data-sources/agent_version.md) |
+| Data source | `claude-managed-agents_environment` | [docs/data-sources/environment.md](docs/data-sources/environment.md) |
+| Data source | `claude-managed-agents_file` | [docs/data-sources/file.md](docs/data-sources/file.md) |
+| Data source | `claude-managed-agents_memory_store` | [docs/data-sources/memory_store.md](docs/data-sources/memory_store.md) |
+| Data source | `claude-managed-agents_vault` | [docs/data-sources/vault.md](docs/data-sources/vault.md) |
+| Data source | `claude-managed-agents_vault_credential` | [docs/data-sources/vault_credential.md](docs/data-sources/vault_credential.md) |
 
 ## Lifecycle gotchas
 
