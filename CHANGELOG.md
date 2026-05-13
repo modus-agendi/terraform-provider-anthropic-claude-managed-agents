@@ -6,6 +6,12 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+- **CI**: `live.yml` schedule promoted from weekly (Monday 03:00 UTC) to
+  nightly (every day 03:00 UTC). Live-API divergences (the kind that
+  caused 17 fixes at the v0.2 cutover) now surface within 24h instead of
+  up to 7 days. Sweeper's 1h age threshold keeps cost bounded.
+
 ## [0.2.2] - 2026-05-13
 
 ### Fixed
