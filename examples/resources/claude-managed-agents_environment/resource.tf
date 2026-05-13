@@ -25,7 +25,7 @@ resource "claude-managed-agents_environment" "locked_down" {
 
     networking = {
       type                   = "limited"
-      allowed_hosts          = ["https://api.example.com", "https://pypi.org"]
+      allowed_hosts          = ["api.example.com", "pypi.org"]
       allow_mcp_servers      = false
       allow_package_managers = false
     }

@@ -88,7 +88,7 @@ func TestUpdateVault_NameAndMetadata(t *testing.T) {
 	name := "Alice (renamed)"
 	_, err := c.UpdateVault(context.Background(), "vlt_FAKE0001", VaultUpdateRequest{
 		DisplayName: &name,
-		Metadata:    map[string]string{"new": "value"},
+		Metadata:    map[string]any{"new": "value"},
 	})
 	if err != nil {
 		t.Fatalf("UpdateVault: %v", err)

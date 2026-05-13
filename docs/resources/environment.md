@@ -62,7 +62,7 @@ resource "claude-managed-agents_environment" "locked_down" {
 
     networking = {
       type                   = "limited"
-      allowed_hosts          = ["https://api.example.com", "https://pypi.org"]
+      allowed_hosts          = ["api.example.com", "pypi.org"]
       allow_mcp_servers      = false
       allow_package_managers = false
     }
@@ -110,9 +110,9 @@ Required:
 
 Optional:
 
-- `allow_mcp_servers` (Boolean) When `type = "limited"`, whether the agent may call out to MCP servers. Defaults to `false`.
-- `allow_package_managers` (Boolean) When `type = "limited"`, whether the agent may run package-manager installs. Defaults to `false`.
-- `allowed_hosts` (List of String) Hostnames or URL prefixes the agent may reach. Only valid when `type = "limited"`.
+- `allow_mcp_servers` (Boolean) When `type = "limited"`, whether the agent may call out to MCP servers. Must be unset (null) when `type = "unrestricted"`.
+- `allow_package_managers` (Boolean) When `type = "limited"`, whether the agent may run package-manager installs. Must be unset (null) when `type = "unrestricted"`.
+- `allowed_hosts` (List of String) Bare hostnames the agent may reach (e.g. `api.example.com`). URL schemes are rejected by the upstream API. Only valid when `type = "limited"`.
 
 
 <a id="nestedatt--config--packages"></a>

@@ -6,6 +6,26 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed (live-API divergences caught by full smoke run)
+- **Environment**: provider no longer sends `allow_mcp_servers` /
+  `allow_package_managers` when `networking.type = "unrestricted"`. Real
+  API rejects them; the `false` defaults from the schema were forcing
+  them on every request.
+- **Environment**: `allowed_hosts` documented as requiring bare hostnames
+  (no URL schemes) — the upstream API rejects entries containing `://`.
+- **Environment**: `packages` returned non-null from the API even when
+  unset; normalized in the read mapping so plans stay clean.
+- **Memory store**: API returns `description: ""` (empty string) when
+  not set; provider now treats empty-string the same as null in state.
+- **Vault / Agent metadata**: real API uses merge semantics rather than
+  full-replace. Provider now sends JSON null for keys that should be
+  deleted and string values for keys that should be set or updated.
+  Metadata payload types changed from `map[string]string` to
+  `map[string]any` in `AgentUpdateRequest` and `VaultUpdateRequest`.
+- Test-only: `claude-managed-agents_vault_credential` id regex relaxed
+  to match either `cred_*` (fake) or `vcrd_*` (real). `agent_version`
+  fake added so `agent_version` data source tests are deterministic.
+
 ### Added
 - Data source `claude-managed-agents_agent_version` — look up a specific
   historical version of an agent by id + version number. The upstream

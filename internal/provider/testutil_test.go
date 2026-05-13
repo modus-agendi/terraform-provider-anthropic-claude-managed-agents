@@ -748,7 +748,7 @@ func (f *fakeAPI) update(w http.ResponseWriter, r *http.Request, id string) {
 		Model       any               `json:"model"`
 		System      json.RawMessage   `json:"system"`
 		Description json.RawMessage   `json:"description"`
-		Metadata    map[string]string `json:"metadata"`
+		Metadata    map[string]any    `json:"metadata"`
 		McpServers  *[]map[string]any `json:"mcp_servers"`
 		Skills      *[]map[string]any `json:"skills"`
 		Multiagent  *map[string]any   `json:"multiagent"`
@@ -788,11 +788,16 @@ func (f *fakeAPI) update(w http.ResponseWriter, r *http.Request, id string) {
 	if body.Description != nil {
 		a.Description = decodeNullableString(body.Description)
 	}
+	// Mirror real API merge semantics: a string value sets/updates the key;
+	// a JSON null value (Go nil) deletes the key; keys not in the request
+	// are left alone.
 	for k, v := range body.Metadata {
-		if v == "" {
+		if v == nil {
 			delete(a.Metadata, k)
-		} else {
-			a.Metadata[k] = v
+			continue
+		}
+		if s, ok := v.(string); ok {
+			a.Metadata[k] = s
 		}
 	}
 	if body.McpServers != nil {
@@ -925,8 +930,8 @@ func (f *fakeAPI) vaultGet(w http.ResponseWriter, id string) {
 
 func (f *fakeAPI) vaultUpdate(w http.ResponseWriter, r *http.Request, id string) {
 	var body struct {
-		DisplayName *string           `json:"display_name"`
-		Metadata    map[string]string `json:"metadata"`
+		DisplayName *string        `json:"display_name"`
+		Metadata    map[string]any `json:"metadata"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeAPIErr(w, http.StatusBadRequest, "invalid_request_error", err.Error())
@@ -946,11 +951,14 @@ func (f *fakeAPI) vaultUpdate(w http.ResponseWriter, r *http.Request, id string)
 	if body.DisplayName != nil {
 		v.DisplayName = *body.DisplayName
 	}
+	// Mirror real API merge semantics; see fakeAgent.update().
 	for k, val := range body.Metadata {
-		if val == "" {
+		if val == nil {
 			delete(v.Metadata, k)
-		} else {
-			v.Metadata[k] = val
+			continue
+		}
+		if s, ok := val.(string); ok {
+			v.Metadata[k] = s
 		}
 	}
 	v.UpdatedAt = time.Now().UTC().Format(time.RFC3339)

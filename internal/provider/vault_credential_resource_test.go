@@ -44,7 +44,8 @@ func TestAccVaultCredentialResource_staticBearerBasic(t *testing.T) {
 			{
 				Config: cfg,
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestMatchResourceAttr("claude-managed-agents_vault_credential.c", "id", regexp.MustCompile(`^cred_`)),
+					// Real API uses `vcrd_` prefix; the fake API still uses `cred_`.
+					resource.TestMatchResourceAttr("claude-managed-agents_vault_credential.c", "id", regexp.MustCompile(`^(cred|vcrd)_`)),
 					resource.TestCheckResourceAttr("claude-managed-agents_vault_credential.c", "display_name", "Linear API key"),
 					resource.TestCheckResourceAttr("claude-managed-agents_vault_credential.c", "auth.type", "static_bearer"),
 					resource.TestCheckResourceAttr("claude-managed-agents_vault_credential.c", "auth.mcp_server_url", "https://mcp.linear.app/mcp"),

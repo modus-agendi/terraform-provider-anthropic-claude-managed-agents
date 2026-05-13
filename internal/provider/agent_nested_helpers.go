@@ -146,8 +146,11 @@ func multiagentFromAPI(ctx context.Context, m *client.Multiagent) (types.Object,
 	memberObjType := types.ObjectType{AttrTypes: multiagentMemberObjectAttrTypes()}
 	items := make([]attr.Value, 0, len(m.Agents))
 	for _, a := range m.Agents {
+		// The API enriches `self` entries with the parent agent's id.
+		// That breaks plan/apply consistency because the HCL config never
+		// declares id for self. Drop it so state matches plan.
 		id := types.StringNull()
-		if a.ID != "" {
+		if a.ID != "" && a.Type != "self" {
 			id = types.StringValue(a.ID)
 		}
 		obj, d := types.ObjectValue(multiagentMemberObjectAttrTypes(), map[string]attr.Value{

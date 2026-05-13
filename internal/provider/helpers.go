@@ -81,11 +81,17 @@ func mapToStringMap(ctx context.Context, m types.Map) (map[string]string, diag.D
 	return out, d
 }
 
-// metadataMerge produces the metadata payload for an update call. Per the
-// upstream API: setting a key to an empty string deletes it. So we send
-// every key the user kept plus an explicit "" for any key the state had but
-// the plan dropped.
-func metadataMerge(ctx context.Context, plan, state types.Map) (map[string]string, diag.Diagnostics) {
+// metadataMerge produces the metadata payload for an update call.
+//
+// The upstream API uses merge semantics — values supplied on update are
+// merged on top of stored state. A key that is not in the request is left
+// alone; a key whose value is JSON null is deleted.
+//
+// This helper produces the smallest possible merge: for keys the user
+// added or changed, include the new string value; for keys the user
+// removed (present in state, missing from plan), include `nil` (which
+// marshals to JSON null and triggers server-side deletion).
+func metadataMerge(ctx context.Context, plan, state types.Map) (map[string]any, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	planned, d := mapToStringMap(ctx, plan)
 	diags.Append(d...)
@@ -94,13 +100,13 @@ func metadataMerge(ctx context.Context, plan, state types.Map) (map[string]strin
 	if diags.HasError() {
 		return nil, diags
 	}
-	out := make(map[string]string, len(planned)+len(current))
+	out := make(map[string]any, len(planned)+len(current))
 	for k, v := range planned {
 		out[k] = v
 	}
 	for k := range current {
 		if _, kept := planned[k]; !kept {
-			out[k] = ""
+			out[k] = nil
 		}
 	}
 	if len(out) == 0 {

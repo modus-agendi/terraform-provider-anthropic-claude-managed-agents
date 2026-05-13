@@ -98,12 +98,16 @@ type AgentCreateRequest struct {
 // from "set to null" (a typed nil string pointer is impossible in JSON, so
 // we wrap with json.RawMessage for the null-clear case).
 type AgentUpdateRequest struct {
-	Version     int               `json:"version"`
-	Name        *string           `json:"name,omitempty"`
-	Model       *string           `json:"model,omitempty"`
-	System      json.RawMessage   `json:"system,omitempty"`
-	Description json.RawMessage   `json:"description,omitempty"`
-	Metadata    map[string]string `json:"metadata,omitempty"`
+	Version     int             `json:"version"`
+	Name        *string         `json:"name,omitempty"`
+	Model       *string         `json:"model,omitempty"`
+	System      json.RawMessage `json:"system,omitempty"`
+	Description json.RawMessage `json:"description,omitempty"`
+	// Metadata uses map[string]any so the provider can send JSON null
+	// values for keys it wants to delete; a string value updates/creates
+	// the key. The upstream API uses merge semantics (not full-replace),
+	// so unset keys are left alone.
+	Metadata map[string]any `json:"metadata,omitempty"`
 
 	// Pointer slices distinguish "leave unchanged" (nil) from "replace
 	// with this exact list" (non-nil — including an explicit empty list).
@@ -215,11 +219,13 @@ type VaultCreateRequest struct {
 }
 
 // VaultUpdateRequest is the body for POST /v1/vaults/{id}. nil DisplayName
-// means leave unchanged; Metadata uses the same key-merge semantics as agents
-// (send empty-string values to delete a key server-side).
+// means leave unchanged. Metadata uses merge semantics (not full-replace):
+// the upstream API merges the supplied map on top of stored values. To
+// delete a key, send JSON null for it — modeled here as map[string]any so
+// nil values marshal as null.
 type VaultUpdateRequest struct {
-	DisplayName *string           `json:"display_name,omitempty"`
-	Metadata    map[string]string `json:"metadata,omitempty"`
+	DisplayName *string        `json:"display_name,omitempty"`
+	Metadata    map[string]any `json:"metadata,omitempty"`
 }
 
 // VaultCredential is the read shape returned by GET
