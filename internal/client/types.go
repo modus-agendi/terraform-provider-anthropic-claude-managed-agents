@@ -30,10 +30,10 @@ type Agent struct {
 	UpdatedAt   time.Time         `json:"updated_at"`
 	ArchivedAt  *time.Time        `json:"archived_at"`
 
-	Tools      []Tool      `json:"tools,omitempty"`
-	McpServers []McpServer `json:"mcp_servers,omitempty"`
-	Skills     []Skill     `json:"skills,omitempty"`
-	Multiagent *Multiagent `json:"multiagent,omitempty"`
+	Tools      []Tool          `json:"tools,omitempty"`
+	McpServers []McpServer     `json:"mcp_servers,omitempty"`
+	Skills     []AgentSkillRef `json:"skills,omitempty"`
+	Multiagent *Multiagent     `json:"multiagent,omitempty"`
 }
 
 // Tool is one entry of the agent's `tools` list. The shape is a
@@ -90,11 +90,16 @@ type McpServer struct {
 	URL  string `json:"url"`
 }
 
-// Skill is one entry of the agent's `skills` list. Discriminated on `type`:
+// AgentSkillRef is one entry of the agent's `skills` list — a reference to
+// an existing skill, not the skill itself. The skill's content (files
+// under SKILL.md) is managed via the separate Skills API and the
+// `claude-managed-agents_skill` resource introduced in v0.3.
+//
+// Discriminated on `type`:
 //   - "anthropic" — pre-built skills (`skill_id` is a short name like "xlsx")
 //   - "custom"    — user-uploaded skills (`skill_id` is `skill_*` and
 //     `version` is optional, defaulting to "latest")
-type Skill struct {
+type AgentSkillRef struct {
 	Type    string `json:"type"`
 	SkillID string `json:"skill_id"`
 	Version string `json:"version,omitempty"`
@@ -126,10 +131,10 @@ type AgentCreateRequest struct {
 	Description *string           `json:"description,omitempty"`
 	Metadata    map[string]string `json:"metadata,omitempty"`
 
-	Tools      []Tool      `json:"tools,omitempty"`
-	McpServers []McpServer `json:"mcp_servers,omitempty"`
-	Skills     []Skill     `json:"skills,omitempty"`
-	Multiagent *Multiagent `json:"multiagent,omitempty"`
+	Tools      []Tool          `json:"tools,omitempty"`
+	McpServers []McpServer     `json:"mcp_servers,omitempty"`
+	Skills     []AgentSkillRef `json:"skills,omitempty"`
+	Multiagent *Multiagent     `json:"multiagent,omitempty"`
 }
 
 // AgentUpdateRequest is the body for POST /v1/agents/{id}.
@@ -152,10 +157,10 @@ type AgentUpdateRequest struct {
 
 	// Pointer slices distinguish "leave unchanged" (nil) from "replace
 	// with this exact list" (non-nil — including an explicit empty list).
-	Tools      *[]Tool      `json:"tools,omitempty"`
-	McpServers *[]McpServer `json:"mcp_servers,omitempty"`
-	Skills     *[]Skill     `json:"skills,omitempty"`
-	Multiagent *Multiagent  `json:"multiagent,omitempty"`
+	Tools      *[]Tool          `json:"tools,omitempty"`
+	McpServers *[]McpServer     `json:"mcp_servers,omitempty"`
+	Skills     *[]AgentSkillRef `json:"skills,omitempty"`
+	Multiagent *Multiagent      `json:"multiagent,omitempty"`
 }
 
 // ListResponse is the cursor pagination envelope shared by all list endpoints.

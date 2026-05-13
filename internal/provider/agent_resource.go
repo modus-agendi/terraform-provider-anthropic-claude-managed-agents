@@ -351,7 +351,7 @@ func (r *agentResource) Update(ctx context.Context, req resource.UpdateRequest, 
 			return
 		}
 		if skills == nil {
-			skills = []client.Skill{}
+			skills = []client.AgentSkillRef{}
 		}
 		updateReq.Skills = &skills
 	}
