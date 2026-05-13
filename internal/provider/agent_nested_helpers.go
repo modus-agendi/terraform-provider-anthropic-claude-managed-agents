@@ -148,10 +148,10 @@ func skillsListToAPI(ctx context.Context, l types.List) ([]client.Skill, diag.Di
 }
 
 // multiagentFromAPI maps the optional coordinator block. nil → object-null.
-// `self` entries are returned with the parent agent's id populated; we drop
-// it because HCL never declares an id for self and the API enrichment would
-// otherwise dirty the plan.
-func multiagentFromAPI(ctx context.Context, m *client.Multiagent) (types.Object, diag.Diagnostics) {
+// The API normalizes `{type: "self"}` entries to `{type: "agent", id: <parent>}`
+// on response; we detect that pattern using parentID and rewrite it back to
+// the user-input shape so state matches the HCL config.
+func multiagentFromAPI(ctx context.Context, m *client.Multiagent, parentID string) (types.Object, diag.Diagnostics) {
 	if m == nil {
 		return types.ObjectNull(multiagentObjectAttrTypes()), nil
 	}
@@ -159,15 +159,19 @@ func multiagentFromAPI(ctx context.Context, m *client.Multiagent) (types.Object,
 	memberObjType := types.ObjectType{AttrTypes: multiagentMemberObjectAttrTypes()}
 	items := make([]attr.Value, 0, len(m.Agents))
 	for _, a := range m.Agents {
-		// The API enriches `self` entries with the parent agent's id.
-		// That breaks plan/apply consistency because the HCL config never
-		// declares id for self. Drop it so state matches plan.
+		entryType := a.Type
 		id := types.StringNull()
-		if a.ID != "" && a.Type != "self" {
+		switch {
+		case entryType == "self":
+			// Defensive: real API rewrites this to "agent"; keep handling
+			// in case some response path returns the literal "self".
+		case entryType == "agent" && a.ID != "" && a.ID == parentID:
+			entryType = "self"
+		case a.ID != "":
 			id = types.StringValue(a.ID)
 		}
 		obj, d := types.ObjectValue(multiagentMemberObjectAttrTypes(), map[string]attr.Value{
-			"type": types.StringValue(a.Type),
+			"type": types.StringValue(entryType),
 			"id":   id,
 		})
 		diags.Append(d...)

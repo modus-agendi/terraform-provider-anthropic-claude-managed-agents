@@ -127,12 +127,23 @@ Roughly in this order:
    - `ExpectError` for at least one invalid config
    - At least one `plancheck.ExpectEmptyPlan` post-apply
    - At least one `statecheck.ExpectKnownValue` for a typed assertion
-8. **Add the sweeper** in `sweep_test.go` matching the prefix convention.
-9. **Add examples** in `examples/resources/claude-managed-agents_<name>/` and
-   `examples/data-sources/claude-managed-agents_<name>/`.
-10. **Run `make docs`** to regenerate doc pages. Commit them.
-11. **Add an entry** to the CHANGELOG under `[Unreleased] / Added`.
-12. **Bump the README scope table** — mark the new resource as `yes` instead
+8. **Add a no-drift sweep** in `nodrift_resource_test.go`:
+   - `TestAcc<Name>Resource_noDrift` exercising every nullable, every
+     list/map, every nested block in a single exhaustive config.
+   - Uses the shared `runNoDrift(t, buildCfg)` helper which applies the
+     config and asserts `plancheck.ExpectEmptyPlan` on a second apply.
+   - The test must NOT skip in live mode — the whole point is to make
+     fake and real API agree on round-trip shape.
+   - When the fake passes but the live API surfaces drift, the bug is in
+     `testutil_test.go` (fake too permissive). Add the missing
+     server-side normalization there so the fake fails in the same way
+     the real API does.
+9. **Add the sweeper** in `sweep_test.go` matching the prefix convention.
+10. **Add examples** in `examples/resources/claude-managed-agents_<name>/` and
+    `examples/data-sources/claude-managed-agents_<name>/`.
+11. **Run `make docs`** to regenerate doc pages. Commit them.
+12. **Add an entry** to the CHANGELOG under `[Unreleased] / Added`.
+13. **Bump the README scope table** — mark the new resource as `yes` instead
     of `Planned`.
 
 ---

@@ -51,7 +51,7 @@ func agentFromAPI(ctx context.Context, a *client.Agent, priorTools types.List, d
 	diags.Append(d...)
 	m.Skills = skills
 
-	multi, d := multiagentFromAPI(ctx, a.Multiagent)
+	multi, d := multiagentFromAPI(ctx, a.Multiagent, a.ID)
 	diags.Append(d...)
 	m.Multiagent = multi
 

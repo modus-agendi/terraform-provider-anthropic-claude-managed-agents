@@ -719,7 +719,7 @@ func (f *fakeAPI) create(w http.ResponseWriter, r *http.Request) {
 		Tools:       body.Tools,
 		McpServers:  body.McpServers,
 		Skills:      body.Skills,
-		Multiagent:  body.Multiagent,
+		Multiagent:  normalizeMultiagentSelf(body.Multiagent, id),
 	}
 	if agent.Metadata == nil {
 		agent.Metadata = map[string]string{}
@@ -814,7 +814,7 @@ func (f *fakeAPI) update(w http.ResponseWriter, r *http.Request, id string) {
 		a.Skills = *body.Skills
 	}
 	if body.Multiagent != nil {
-		a.Multiagent = *body.Multiagent
+		a.Multiagent = normalizeMultiagentSelf(*body.Multiagent, a.ID)
 	}
 
 	a.Version++
@@ -1222,6 +1222,33 @@ func scrubCredentialSecrets(in map[string]any) map[string]any {
 		out[k] = v
 	}
 	return out
+}
+
+// normalizeMultiagentSelf mirrors the real API: an `agents[*]` entry sent as
+// {type: "self"} is rewritten to {type: "agent", id: <parent>} on response.
+// Without this mirroring the L2 fake would silently accept self entries that
+// the real API rejects on round-trip.
+func normalizeMultiagentSelf(in map[string]any, parentID string) map[string]any {
+	if in == nil {
+		return nil
+	}
+	agents, ok := in["agents"].([]any)
+	if !ok {
+		return in
+	}
+	for i, raw := range agents {
+		entry, ok := raw.(map[string]any)
+		if !ok {
+			continue
+		}
+		if t, _ := entry["type"].(string); t == "self" {
+			entry["type"] = "agent"
+			entry["id"] = parentID
+			agents[i] = entry
+		}
+	}
+	in["agents"] = agents
+	return in
 }
 
 func writeAPIErr(w http.ResponseWriter, status int, typ, msg string) {

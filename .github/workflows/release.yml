@@ -9,7 +9,54 @@ permissions:
   contents: write
 
 jobs:
+  # Hard gate: live acceptance must pass before goreleaser publishes.
+  # If a divergence has appeared between the fake L2 fixture and the real
+  # Anthropic API since the last weekly run, this catches it before the
+  # release ships. To bypass for a hotfix, dispatch the release manually
+  # after temporarily removing `needs: live`.
+  live:
+    name: pre-release live acceptance
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      TF_ACC: "1"
+      TF_ACC_LIVE: "1"
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4
+        with:
+          terraform_version: "1.11.*"
+          terraform_wrapper: false
+      - run: go mod download
+      - name: Pre-run sweep
+        run: |
+          go test ./internal/provider/... \
+            -v \
+            -sweep=anthropic \
+            -sweep-run=claude-managed-agents_agent \
+            -timeout 10m
+      - name: Live acceptance tests
+        run: |
+          go test ./internal/provider/... \
+            -count=1 \
+            -timeout 25m
+      - name: Post-run sweep
+        if: always()
+        run: |
+          go test ./internal/provider/... \
+            -v \
+            -sweep=anthropic \
+            -sweep-run=claude-managed-agents_agent \
+            -sweep-allow-failures \
+            -timeout 10m
+
   release:
+    needs: live
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
