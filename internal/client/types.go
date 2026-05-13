@@ -105,6 +105,69 @@ type AgentSkillRef struct {
 	Version string `json:"version,omitempty"`
 }
 
+// Skill is the read shape returned by GET /v1/skills/{id} and POST
+// /v1/skills. The Skills API is a beta surface gated by the
+// `anthropic-beta: skills-2025-10-02` header (see `skillsBeta`); the client
+// applies it automatically on every skill method.
+//
+// `Source` is "custom" for user-uploaded skills and "anthropic" for
+// pre-built skills (e.g. `pptx`, `xlsx`). `LatestVersion` is an epoch
+// timestamp string for custom skills and an ISO date for Anthropic
+// prebuilts.
+type Skill struct {
+	ID            string    `json:"id"`
+	Type          string    `json:"type"`
+	Source        string    `json:"source"`
+	DisplayTitle  string    `json:"display_title"`
+	LatestVersion string    `json:"latest_version"`
+	CreatedAt     time.Time `json:"created_at"`
+}
+
+// SkillVersion is one entry in GET /v1/skills/{id}/versions.
+type SkillVersion struct {
+	Type      string    `json:"type"`
+	SkillID   string    `json:"skill_id"`
+	Version   string    `json:"version"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+// SkillFile is one file in the multipart upload. Path is the POSIX-style
+// relative path within the skill (SKILL.md must be at the root, no leading
+// slash). Content is the raw bytes.
+type SkillFile struct {
+	Path    string
+	Content []byte
+}
+
+// SkillCreateRequest is the body for POST /v1/skills (multipart/form-data).
+// The client converts this to a multipart payload via buildSkillMultipart.
+type SkillCreateRequest struct {
+	DisplayTitle string
+	Files        []SkillFile
+}
+
+// SkillVersionCreateRequest is the body for POST /v1/skills/{id}/versions
+// (multipart/form-data). Like SkillCreateRequest, Files must contain a
+// `SKILL.md` at the root.
+type SkillVersionCreateRequest struct {
+	Files []SkillFile
+}
+
+// ListSkillsParams holds query parameters for ListSkills.
+type ListSkillsParams struct {
+	Limit    int
+	BeforeID string
+	AfterID  string
+	Source   string // "" | "custom" | "anthropic"
+}
+
+// ListSkillVersionsParams holds query parameters for ListSkillVersions.
+type ListSkillVersionsParams struct {
+	Limit    int
+	BeforeID string
+	AfterID  string
+}
+
 // Multiagent is the agent's optional coordinator config.
 type Multiagent struct {
 	Type   string             `json:"type"`
