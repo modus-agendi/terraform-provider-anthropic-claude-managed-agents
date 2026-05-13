@@ -7,6 +7,13 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- Data source `claude-managed-agents_agent_version` — look up a specific
+  historical version of an agent by id + version number. The upstream
+  API only exposes a list endpoint, so this data source pages through
+  the version history and filters.
+- Data source `claude-managed-agents_file` — read file metadata
+  (filename, size_bytes, mime_type, scope_id, created_at). Binary
+  content download is not modeled.
 - `claude-managed-agents_agent` resource and data source now expose three
   of the four nested-config fields as first-class HCL:
   - `mcp_servers` (list of `{type, name, url}`) — MCP server roster.
