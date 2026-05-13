@@ -11,7 +11,7 @@ description: |-
   Metadata
   The metadata map uses full-replace semantics: the provider sends the exact map declared in HCL on every update, and the upstream API replaces whatever was stored. Removing a key from your HCL deletes it server-side.
   Server-side nested fields
-  The upstream agent object also includes tools, mcp_servers, skills, and multiagent nested fields. v0.1 of this provider preserves whatever is on the server for those fields, but does not expose them as HCL. To change them today, use the API directly; Terraform updates to other fields will not clobber them.
+  All four nested-config fields (tools, mcp_servers, skills, multiagent) are first-class HCL as of v0.2. Sending an empty list clears server-side state; omitting the attribute leaves it unchanged.
 ---
 
 # claude-managed-agents_agent (Resource)
@@ -32,7 +32,7 @@ The `metadata` map uses full-replace semantics: the provider sends the exact map
 
 ### Server-side nested fields
 
-The upstream agent object also includes `tools`, `mcp_servers`, `skills`, and `multiagent` nested fields. v0.1 of this provider preserves whatever is on the server for those fields, but does not expose them as HCL. To change them today, use the API directly; Terraform updates to other fields will not clobber them.
+All four nested-config fields (`tools`, `mcp_servers`, `skills`, `multiagent`) are first-class HCL as of v0.2. Sending an empty list clears server-side state; omitting the attribute leaves it unchanged.
 
 ## Example Usage
 
@@ -50,6 +50,40 @@ resource "claude-managed-agents_agent" "coding_assistant" {
 
   mcp_servers = [
     { type = "url", name = "github", url = "https://mcp.example.com/github" },
+  ]
+
+  # Tools: the bundled Anthropic toolset, an MCP toolset bound to the
+  # github MCP server above, and a user-defined custom tool with a JSON
+  # Schema for its arguments.
+  tools = [
+    {
+      type = "agent_toolset_20260401"
+      default_config = {
+        permission_policy = { type = "always_allow" }
+      }
+      configs = [
+        { name = "web_fetch", enabled = false },
+      ]
+    },
+    {
+      type            = "mcp_toolset"
+      mcp_server_name = "github"
+      default_config = {
+        permission_policy = { type = "always_ask" }
+      }
+    },
+    {
+      type        = "custom"
+      name        = "lookup_user"
+      description = "Look up a user by id"
+      input_schema = jsonencode({
+        type = "object"
+        properties = {
+          user_id = { type = "string" }
+        }
+        required = ["user_id"]
+      })
+    },
   ]
 
   skills = [
@@ -92,11 +126,18 @@ output "agent_version" {
 ### Optional
 
 - `description` (String) Free-form description. Optional. Set to `null` to clear.
-- `mcp_servers` (Attributes List) MCP servers the agent may connect to at session runtime. Mutable. Sending an empty list clears server-side state. (see [below for nested schema](#nestedatt--mcp_servers))
+- `mcp_servers` (Attributes List) MCP servers the agent may connect to at session runtime. Mutable. Sending an empty list clears server-side state. The upstream API requires that every MCP server be referenced by a matching `tools` entry of type `mcp_toolset`. (see [below for nested schema](#nestedatt--mcp_servers))
 - `metadata` (Map of String) Arbitrary string-string labels. Full-replace on update: the provider sends the exact map declared in HCL, and the upstream API replaces whatever was stored. Removing a key from your HCL deletes it server-side.
 - `multiagent` (Attributes) Multi-agent coordinator config. Mutable. Set to null to clear. (see [below for nested schema](#nestedatt--multiagent))
 - `skills` (Attributes List) Skills the agent has access to. Mutable. (see [below for nested schema](#nestedatt--skills))
 - `system` (String) System prompt for the agent. Optional. Set to `null` to clear.
+- `tools` (Attributes List) Tools the agent has access to. Each entry is one of three variants discriminated by `type`:
+
+  - `agent_toolset_20260401` — the bundled Anthropic toolset (bash, edit, web_fetch, etc.). Use `default_config` for toolset-wide defaults and `configs[*]` to override individual tools by `name`.
+  - `mcp_toolset` — exposes the tools of an MCP server. `mcp_server_name` must reference an entry of `mcp_servers`. Like `agent_toolset_20260401`, supports `default_config` + `configs[*]` where `name` is an MCP-exposed tool name.
+  - `custom` — a user-defined tool. Requires `name`, `description`, and `input_schema` (a JSON-encoded JSON Schema; pass via `jsonencode({...})`).
+
+Permission policies (`default_config.permission_policy.type` or `configs[*].permission_policy.type`) are `always_allow` (run automatically) or `always_ask` (wait for approval). MCP toolsets default to `always_ask` server-side; the bundled Anthropic toolset defaults to `always_allow`. (see [below for nested schema](#nestedatt--tools))
 
 ### Read-Only
 
@@ -148,6 +189,59 @@ Required:
 Optional:
 
 - `version` (String) Version selector for `custom` skills. Defaults server-side to `latest`.
+
+
+<a id="nestedatt--tools"></a>
+### Nested Schema for `tools`
+
+Required:
+
+- `type` (String) Discriminator: `agent_toolset_20260401` (the bundled Anthropic toolset), `mcp_toolset` (exposes an MCP server's tools), or `custom` (a user-defined tool).
+
+Optional:
+
+- `configs` (Attributes List) Per-tool overrides. Only meaningful when `type` is `agent_toolset_20260401` or `mcp_toolset`. Each entry's `name` must match the tool to override. (see [below for nested schema](#nestedatt--tools--configs))
+- `default_config` (Attributes) Toolset-wide default config. Only meaningful when `type` is `agent_toolset_20260401` or `mcp_toolset`. The upstream API enriches this field on read; the provider drops the enrichment to keep state in sync with HCL. (see [below for nested schema](#nestedatt--tools--default_config))
+- `description` (String) Required when `type = "custom"`. Free-form description shown to the model.
+- `input_schema` (String) Required when `type = "custom"`. JSON Schema as a JSON-encoded string (use `jsonencode({...})`). JSON Schema is recursive, so this provider keeps it as a string rather than a nested attribute.
+- `mcp_server_name` (String) Required when `type = "mcp_toolset"`. Must match the `name` of an entry in `mcp_servers`.
+- `name` (String) Required when `type = "custom"`. Tool identifier the model uses to call the tool.
+
+<a id="nestedatt--tools--configs"></a>
+### Nested Schema for `tools.configs`
+
+Required:
+
+- `name` (String) Tool name (e.g. `bash`, `web_fetch`).
+
+Optional:
+
+- `enabled` (Boolean) Per-tool enable/disable.
+- `permission_policy` (Attributes) Per-tool permission policy. (see [below for nested schema](#nestedatt--tools--configs--permission_policy))
+
+<a id="nestedatt--tools--configs--permission_policy"></a>
+### Nested Schema for `tools.configs.permission_policy`
+
+Required:
+
+- `type` (String) Either `always_allow` or `always_ask`.
+
+
+
+<a id="nestedatt--tools--default_config"></a>
+### Nested Schema for `tools.default_config`
+
+Optional:
+
+- `enabled` (Boolean) When `false`, every tool in the toolset is disabled by default.
+- `permission_policy` (Attributes) Default permission policy for the toolset. (see [below for nested schema](#nestedatt--tools--default_config--permission_policy))
+
+<a id="nestedatt--tools--default_config--permission_policy"></a>
+### Nested Schema for `tools.default_config.permission_policy`
+
+Required:
+
+- `type` (String) Either `always_allow` (run automatically) or `always_ask` (wait for approval).
 
 ## Import
 

@@ -36,13 +36,12 @@ This provider lets you put that configuration under Terraform so you can:
 | Data source `claude-managed-agents_vault_credential` | yes (unreleased) | — |
 | Resource `claude-managed-agents_memory_store` | yes (unreleased) | — |
 | Data source `claude-managed-agents_memory_store` | yes (unreleased) | — |
-| Nested blocks on agent (`mcp_servers`, `skills`, `multiagent`) | yes (unreleased) | — |
-| Nested blocks on agent (`tools`) | server-side state preserved as raw JSON | exposed as HCL in v0.3+ |
+| Nested blocks on agent (`mcp_servers`, `skills`, `multiagent`, `tools`) | yes (unreleased) | — |
 | Data source `claude-managed-agents_agent_version` | yes (unreleased) | — |
 | Data source `claude-managed-agents_file` | yes (unreleased) | — |
 | Data source for skills | — | follow-up (no API endpoint yet) |
 
-If you set `tools`, `mcp_servers`, `skills`, or `multiagent` on an agent via the API directly, the provider will preserve those server-side values through Terraform updates of other fields. They just aren't editable from HCL in v0.1.
+Existing v0.1 agents that have server-side state in `tools`, `mcp_servers`, `skills`, or `multiagent` will see Terraform plan to set them on the next refresh. Adding the matching HCL declaration is a no-op.
 
 ## Quickstart
 
@@ -162,15 +161,9 @@ A breaking change is one of:
 
 ## Roadmap
 
-In priority order:
+All v0.2 surface (environments, vaults + vault credentials, memory stores, agent nested blocks, agent_version + file data sources) is implemented and unreleased pending tagging.
 
-1. `claude-managed-agents_environment` (full CRUD; treat every field as ForceNew per upstream constraints).
-2. `claude-managed-agents_vault` + `claude-managed-agents_vault_credential` (vault credential needs careful WriteOnly handling).
-3. Nested blocks on agent: `tools`, `mcp_servers`, then `skills` and `multiagent`.
-4. `claude-managed-agents_memory_store`.
-5. Data sources: `agent_version`, `environment`, `vault`, `memory_store`, `skill`, `file`.
-
-Sessions, dreams, and webhook endpoints are not currently on the roadmap. Open an issue if you'd like to discuss.
+Sessions, dreams, memory contents/versions, and webhook endpoints are not currently on the roadmap. The skills data source is deferred until upstream documents a REST lookup endpoint. Open an issue if you'd like to discuss.
 
 ## Contributing
 

@@ -10,7 +10,10 @@ import (
 )
 
 // agentFromAPI maps a client.Agent into the Terraform schema model.
-func agentFromAPI(ctx context.Context, a *client.Agent, diags *diag.Diagnostics) agentModel {
+// priorTools is consulted when remapping the tools list: API-enriched
+// default_config / configs fields are dropped in favor of the prior
+// plan/state value (or null on first read).
+func agentFromAPI(ctx context.Context, a *client.Agent, priorTools types.List, diags *diag.Diagnostics) agentModel {
 	m := agentModel{
 		ID:        types.StringValue(a.ID),
 		Name:      types.StringValue(a.Name),
@@ -51,6 +54,10 @@ func agentFromAPI(ctx context.Context, a *client.Agent, diags *diag.Diagnostics)
 	multi, d := multiagentFromAPI(ctx, a.Multiagent)
 	diags.Append(d...)
 	m.Multiagent = multi
+
+	tools, d := toolsListFromAPI(ctx, a.Tools, priorTools)
+	diags.Append(d...)
+	m.Tools = tools
 
 	return m
 }

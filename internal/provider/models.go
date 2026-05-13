@@ -18,6 +18,7 @@ type agentModel struct {
 	UpdatedAt   types.String `tfsdk:"updated_at"`
 	ArchivedAt  types.String `tfsdk:"archived_at"`
 
+	Tools      types.List   `tfsdk:"tools"`
 	McpServers types.List   `tfsdk:"mcp_servers"`
 	Skills     types.List   `tfsdk:"skills"`
 	Multiagent types.Object `tfsdk:"multiagent"`

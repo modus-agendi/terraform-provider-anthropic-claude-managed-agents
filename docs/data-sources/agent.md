@@ -48,6 +48,7 @@ output "existing_agent_version" {
 - `name` (String) Agent name.
 - `skills` (Attributes List) Skills configured on the agent. (see [below for nested schema](#nestedatt--skills))
 - `system` (String) System prompt, or null.
+- `tools` (Attributes List) Tools configured on the agent. See the resource for the full schema. (see [below for nested schema](#nestedatt--tools))
 - `updated_at` (String) ISO 8601 last-modified timestamp.
 - `version` (Number) Server-managed version number.
 
@@ -87,3 +88,50 @@ Read-Only:
 - `skill_id` (String)
 - `type` (String)
 - `version` (String)
+
+
+<a id="nestedatt--tools"></a>
+### Nested Schema for `tools`
+
+Read-Only:
+
+- `configs` (Attributes List) (see [below for nested schema](#nestedatt--tools--configs))
+- `default_config` (Attributes) (see [below for nested schema](#nestedatt--tools--default_config))
+- `description` (String)
+- `input_schema` (String)
+- `mcp_server_name` (String)
+- `name` (String)
+- `type` (String)
+
+<a id="nestedatt--tools--configs"></a>
+### Nested Schema for `tools.configs`
+
+Read-Only:
+
+- `enabled` (Boolean)
+- `name` (String)
+- `permission_policy` (Attributes) (see [below for nested schema](#nestedatt--tools--configs--permission_policy))
+
+<a id="nestedatt--tools--configs--permission_policy"></a>
+### Nested Schema for `tools.configs.permission_policy`
+
+Read-Only:
+
+- `type` (String)
+
+
+
+<a id="nestedatt--tools--default_config"></a>
+### Nested Schema for `tools.default_config`
+
+Read-Only:
+
+- `enabled` (Boolean)
+- `permission_policy` (Attributes) (see [below for nested schema](#nestedatt--tools--default_config--permission_policy))
+
+<a id="nestedatt--tools--default_config--permission_policy"></a>
+### Nested Schema for `tools.default_config.permission_policy`
+
+Read-Only:
+
+- `type` (String)
