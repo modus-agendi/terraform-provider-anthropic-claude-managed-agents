@@ -32,7 +32,8 @@ This provider lets you put that configuration under Terraform so you can:
 | Data source `claude-managed-agents_environment` | yes (unreleased) | — |
 | Resource `claude-managed-agents_vault` | — | v0.2 |
 | Resource `claude-managed-agents_vault_credential` | — | v0.2 |
-| Resource `claude-managed-agents_memory_store` | — | v0.3 |
+| Resource `claude-managed-agents_memory_store` | yes (unreleased) | — |
+| Data source `claude-managed-agents_memory_store` | yes (unreleased) | — |
 | Nested blocks on agent (`tools`, `mcp_servers`, `skills`, `multiagent`) | server-side state preserved as raw JSON | exposed as HCL in v0.3+ |
 | Data sources for skills, files, agent versions | — | follow-up |
 
