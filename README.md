@@ -30,8 +30,10 @@ This provider lets you put that configuration under Terraform so you can:
 | Data source `claude-managed-agents_agent` | yes | — |
 | Resource `claude-managed-agents_environment` | yes (unreleased) | — |
 | Data source `claude-managed-agents_environment` | yes (unreleased) | — |
-| Resource `claude-managed-agents_vault` | — | v0.2 |
-| Resource `claude-managed-agents_vault_credential` | — | v0.2 |
+| Resource `claude-managed-agents_vault` | yes (unreleased) | — |
+| Data source `claude-managed-agents_vault` | yes (unreleased) | — |
+| Resource `claude-managed-agents_vault_credential` | yes (unreleased) | — |
+| Data source `claude-managed-agents_vault_credential` | yes (unreleased) | — |
 | Resource `claude-managed-agents_memory_store` | yes (unreleased) | — |
 | Data source `claude-managed-agents_memory_store` | yes (unreleased) | — |
 | Nested blocks on agent (`tools`, `mcp_servers`, `skills`, `multiagent`) | server-side state preserved as raw JSON | exposed as HCL in v0.3+ |
@@ -43,7 +45,7 @@ If you set `tools`, `mcp_servers`, `skills`, or `multiagent` on an agent via the
 
 ```hcl
 terraform {
-  required_version = ">= 1.8"
+  required_version = ">= 1.11"
 
   required_providers {
     claude-managed-agents = {
@@ -111,11 +113,11 @@ provider "claude-managed-agents" {
 
 ## OpenTofu compatibility
 
-The provider builds on protocol v6 and uses the Plugin Framework. It works against OpenTofu 1.6+ as well as Terraform 1.8+. CI builds against both engines.
+The provider builds on protocol v6 and uses the Plugin Framework. As of v0.2, it requires Terraform 1.11+ or OpenTofu 1.8+ — both engines support TF 1.11 write-only attributes, which the provider uses to handle secrets in `claude-managed-agents_vault_credential`.
 
 ## Local development
 
-Pre-requisites: Go 1.23+, Terraform 1.8+ (or OpenTofu 1.6+), `golangci-lint`.
+Pre-requisites: Go 1.23+, Terraform 1.11+ (or OpenTofu 1.8+), `golangci-lint`.
 
 ```sh
 git clone https://github.com/andasv/terraform-provider-claude-managed-agents

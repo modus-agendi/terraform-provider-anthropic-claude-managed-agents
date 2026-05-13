@@ -43,6 +43,10 @@ func init() {
 		Name: "claude-managed-agents_memory_store",
 		F:    sweepMemoryStores,
 	})
+	resource.AddTestSweepers("claude-managed-agents_vault", &resource.Sweeper{
+		Name: "claude-managed-agents_vault",
+		F:    sweepVaults,
+	})
 }
 
 // sweepAgents archives any agent whose name starts with `tf-acc-test-` and
@@ -219,5 +223,61 @@ func sweepMemoryStores(_ string) error {
 	}
 
 	log.Printf("[INFO] memory store sweeper finished: archived=%d skipped_young=%d", swept, skippedYoung)
+	return nil
+}
+
+// sweepVaults archives any vault whose display_name starts with
+// tf-acc-test- and was created more than sweepAgeThreshold ago. Archiving
+// the vault cascades through credentials server-side, so we don't need a
+// separate credential sweeper.
+func sweepVaults(_ string) error {
+	apiKey := os.Getenv("ANTHROPIC_API_KEY")
+	if apiKey == "" {
+		log.Println("[INFO] ANTHROPIC_API_KEY not set; vault sweeper is a no-op")
+		return nil
+	}
+
+	c, err := client.New(client.Config{
+		APIKey:    apiKey,
+		UserAgent: "terraform-provider-claude-managed-agents/sweeper",
+	})
+	if err != nil {
+		return fmt.Errorf("vault sweeper: build client: %w", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	var (
+		cursor       string
+		swept        int
+		skippedYoung int
+	)
+	for {
+		page, err := c.ListVaults(ctx, client.ListVaultsParams{Limit: 100, AfterID: cursor})
+		if err != nil {
+			return fmt.Errorf("vault sweeper: list: %w", err)
+		}
+		for _, v := range page.Data {
+			if !strings.HasPrefix(v.DisplayName, testResourcePrefix) {
+				continue
+			}
+			if time.Since(v.CreatedAt) < sweepAgeThreshold {
+				skippedYoung++
+				continue
+			}
+			if err := c.ArchiveVault(ctx, v.ID); err != nil && !client.IsNotFound(err) {
+				return fmt.Errorf("vault sweeper: archive %s: %w", v.ID, err)
+			}
+			log.Printf("[INFO] swept vault %s (%s)", v.ID, v.DisplayName)
+			swept++
+		}
+		if !page.HasMore {
+			break
+		}
+		cursor = page.LastID
+	}
+
+	log.Printf("[INFO] vault sweeper finished: archived=%d skipped_young=%d", swept, skippedYoung)
 	return nil
 }

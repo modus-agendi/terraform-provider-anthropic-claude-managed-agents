@@ -39,9 +39,34 @@ type fakeAPI struct {
 	envs           map[string]*fakeEnvironment
 	envBlockDelete map[string]bool // ids for which env DELETE should 409
 	stores         map[string]*fakeMemoryStore
+	vaults         map[string]*fakeVault
+	creds          map[string]*fakeVaultCredential // keyed by credential id
 	counter        int
 	envCounter     int
 	storeCounter   int
+	vaultCounter   int
+	credCounter    int
+}
+
+type fakeVault struct {
+	ID          string            `json:"id"`
+	Type        string            `json:"type"`
+	DisplayName string            `json:"display_name"`
+	Metadata    map[string]string `json:"metadata"`
+	CreatedAt   string            `json:"created_at"`
+	UpdatedAt   string            `json:"updated_at"`
+	ArchivedAt  *string           `json:"archived_at"`
+}
+
+type fakeVaultCredential struct {
+	ID          string         `json:"id"`
+	Type        string         `json:"type"`
+	VaultID     string         `json:"vault_id"`
+	DisplayName string         `json:"display_name"`
+	Auth        map[string]any `json:"auth"`
+	CreatedAt   string         `json:"created_at"`
+	UpdatedAt   string         `json:"updated_at"`
+	ArchivedAt  *string        `json:"archived_at"`
 }
 
 type fakeMemoryStore struct {
@@ -84,6 +109,8 @@ func newFakeAPI() *fakeAPI {
 		envs:           map[string]*fakeEnvironment{},
 		envBlockDelete: map[string]bool{},
 		stores:         map[string]*fakeMemoryStore{},
+		vaults:         map[string]*fakeVault{},
+		creds:          map[string]*fakeVaultCredential{},
 	}
 }
 
@@ -93,6 +120,15 @@ func (f *fakeAPI) DeleteAllStores() {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.stores = map[string]*fakeMemoryStore{}
+}
+
+// DeleteAllVaults wipes the vault and credential maps. Use to simulate an
+// out-of-band deletion before a Read step.
+func (f *fakeAPI) DeleteAllVaults() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.vaults = map[string]*fakeVault{}
+	f.creds = map[string]*fakeVaultCredential{}
 }
 
 // BlockEnvDelete makes DELETE /v1/environments/{id} return 409 on the next
@@ -208,6 +244,80 @@ func (f *fakeAPI) handler() http.Handler {
 
 	envArchiveRe := regexp.MustCompile(`^/v1/environments/([^/]+)/archive$`)
 	envItemRe := regexp.MustCompile(`^/v1/environments/([^/]+)$`)
+
+	mux.HandleFunc("/v1/vaults", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodPost:
+			f.vaultCreate(w, r)
+		case http.MethodGet:
+			f.vaultList(w, r)
+		default:
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+
+	vaultArchiveRe := regexp.MustCompile(`^/v1/vaults/([^/]+)/archive$`)
+	credListRe := regexp.MustCompile(`^/v1/vaults/([^/]+)/credentials$`)
+	credArchiveRe := regexp.MustCompile(`^/v1/vaults/([^/]+)/credentials/([^/]+)/archive$`)
+	credItemRe := regexp.MustCompile(`^/v1/vaults/([^/]+)/credentials/([^/]+)$`)
+	vaultItemRe := regexp.MustCompile(`^/v1/vaults/([^/]+)$`)
+
+	mux.HandleFunc("/v1/vaults/", func(w http.ResponseWriter, r *http.Request) {
+		if m := credArchiveRe.FindStringSubmatch(r.URL.Path); m != nil {
+			if r.Method != http.MethodPost {
+				http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+				return
+			}
+			f.credArchive(w, m[1], m[2])
+			return
+		}
+		if m := credItemRe.FindStringSubmatch(r.URL.Path); m != nil {
+			switch r.Method {
+			case http.MethodGet:
+				f.credGet(w, m[1], m[2])
+			case http.MethodPost:
+				f.credUpdate(w, r, m[1], m[2])
+			case http.MethodDelete:
+				f.credDelete(w, m[1], m[2])
+			default:
+				http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			}
+			return
+		}
+		if m := credListRe.FindStringSubmatch(r.URL.Path); m != nil {
+			switch r.Method {
+			case http.MethodPost:
+				f.credCreate(w, r, m[1])
+			case http.MethodGet:
+				f.credList(w, r, m[1])
+			default:
+				http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			}
+			return
+		}
+		if m := vaultArchiveRe.FindStringSubmatch(r.URL.Path); m != nil {
+			if r.Method != http.MethodPost {
+				http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+				return
+			}
+			f.vaultArchive(w, m[1])
+			return
+		}
+		if m := vaultItemRe.FindStringSubmatch(r.URL.Path); m != nil {
+			switch r.Method {
+			case http.MethodGet:
+				f.vaultGet(w, m[1])
+			case http.MethodPost:
+				f.vaultUpdate(w, r, m[1])
+			case http.MethodDelete:
+				f.vaultDelete(w, m[1])
+			default:
+				http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			}
+			return
+		}
+		http.Error(w, "not found", http.StatusNotFound)
+	})
 
 	mux.HandleFunc("/v1/memory_stores", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
@@ -663,6 +773,336 @@ func (f *fakeAPI) list(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(http.StatusOK)
 	_ = json.NewEncoder(w).Encode(out)
+}
+
+// --- vault handlers ---
+
+func (f *fakeAPI) vaultCreate(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		DisplayName string            `json:"display_name"`
+		Metadata    map[string]string `json:"metadata"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeAPIErr(w, http.StatusBadRequest, "invalid_request_error", err.Error())
+		return
+	}
+	if body.DisplayName == "" {
+		writeAPIErr(w, http.StatusBadRequest, "invalid_request_error", "display_name is required")
+		return
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.vaultCounter++
+	now := time.Now().UTC().Format(time.RFC3339)
+	id := fmt.Sprintf("vlt_FAKE%04d", f.vaultCounter)
+	v := &fakeVault{
+		ID: id, Type: "vault", DisplayName: body.DisplayName,
+		Metadata: body.Metadata, CreatedAt: now, UpdatedAt: now,
+	}
+	if v.Metadata == nil {
+		v.Metadata = map[string]string{}
+	}
+	f.vaults[id] = v
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(v)
+}
+
+func (f *fakeAPI) vaultGet(w http.ResponseWriter, id string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	v, ok := f.vaults[id]
+	if !ok {
+		writeAPIErr(w, http.StatusNotFound, "not_found_error", "no such vault")
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(v)
+}
+
+func (f *fakeAPI) vaultUpdate(w http.ResponseWriter, r *http.Request, id string) {
+	var body struct {
+		DisplayName *string           `json:"display_name"`
+		Metadata    map[string]string `json:"metadata"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeAPIErr(w, http.StatusBadRequest, "invalid_request_error", err.Error())
+		return
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	v, ok := f.vaults[id]
+	if !ok {
+		writeAPIErr(w, http.StatusNotFound, "not_found_error", "no such vault")
+		return
+	}
+	if v.ArchivedAt != nil {
+		writeAPIErr(w, http.StatusConflict, "conflict_error", "vault is archived")
+		return
+	}
+	if body.DisplayName != nil {
+		v.DisplayName = *body.DisplayName
+	}
+	for k, val := range body.Metadata {
+		if val == "" {
+			delete(v.Metadata, k)
+		} else {
+			v.Metadata[k] = val
+		}
+	}
+	v.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(v)
+}
+
+func (f *fakeAPI) vaultArchive(w http.ResponseWriter, id string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	v, ok := f.vaults[id]
+	if !ok {
+		writeAPIErr(w, http.StatusNotFound, "not_found_error", "no such vault")
+		return
+	}
+	now := time.Now().UTC().Format(time.RFC3339)
+	v.ArchivedAt = &now
+	// Cascade archive to credentials.
+	for _, c := range f.creds {
+		if c.VaultID == id && c.ArchivedAt == nil {
+			c.ArchivedAt = &now
+		}
+	}
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(v)
+}
+
+func (f *fakeAPI) vaultDelete(w http.ResponseWriter, id string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if _, ok := f.vaults[id]; !ok {
+		writeAPIErr(w, http.StatusNotFound, "not_found_error", "no such vault")
+		return
+	}
+	delete(f.vaults, id)
+	// Cascade delete to credentials.
+	for cid, c := range f.creds {
+		if c.VaultID == id {
+			delete(f.creds, cid)
+		}
+	}
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(`{}`))
+}
+
+func (f *fakeAPI) vaultList(w http.ResponseWriter, r *http.Request) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	includeArchived := r.URL.Query().Get("include_archived") == "true"
+	out := struct {
+		Data    []*fakeVault `json:"data"`
+		HasMore bool         `json:"has_more"`
+		FirstID string       `json:"first_id"`
+		LastID  string       `json:"last_id"`
+	}{Data: []*fakeVault{}}
+	for _, v := range f.vaults {
+		if v.ArchivedAt != nil && !includeArchived {
+			continue
+		}
+		out.Data = append(out.Data, v)
+	}
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(out)
+}
+
+// --- vault credential handlers ---
+
+func (f *fakeAPI) credCreate(w http.ResponseWriter, r *http.Request, vaultID string) {
+	var body struct {
+		DisplayName string         `json:"display_name"`
+		Auth        map[string]any `json:"auth"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeAPIErr(w, http.StatusBadRequest, "invalid_request_error", err.Error())
+		return
+	}
+	if body.DisplayName == "" || body.Auth == nil {
+		writeAPIErr(w, http.StatusBadRequest, "invalid_request_error", "display_name and auth are required")
+		return
+	}
+	if body.Auth["type"] == nil {
+		writeAPIErr(w, http.StatusBadRequest, "invalid_request_error", "auth.type is required")
+		return
+	}
+	if body.Auth["mcp_server_url"] == nil {
+		writeAPIErr(w, http.StatusBadRequest, "invalid_request_error", "auth.mcp_server_url is required")
+		return
+	}
+
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if _, ok := f.vaults[vaultID]; !ok {
+		writeAPIErr(w, http.StatusNotFound, "not_found_error", "no such vault")
+		return
+	}
+	// Reject duplicate mcp_server_url within the same active vault.
+	for _, c := range f.creds {
+		if c.VaultID == vaultID && c.ArchivedAt == nil {
+			if existingURL, _ := c.Auth["mcp_server_url"].(string); existingURL != "" {
+				if existingURL == body.Auth["mcp_server_url"] {
+					writeAPIErr(w, http.StatusConflict, "conflict_error", "duplicate mcp_server_url within vault")
+					return
+				}
+			}
+		}
+	}
+
+	f.credCounter++
+	now := time.Now().UTC().Format(time.RFC3339)
+	id := fmt.Sprintf("cred_FAKE%04d", f.credCounter)
+	storedAuth := scrubCredentialSecrets(body.Auth)
+	c := &fakeVaultCredential{
+		ID: id, Type: "vault_credential", VaultID: vaultID,
+		DisplayName: body.DisplayName, Auth: storedAuth,
+		CreatedAt: now, UpdatedAt: now,
+	}
+	f.creds[id] = c
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(c)
+}
+
+func (f *fakeAPI) credGet(w http.ResponseWriter, vaultID, credID string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	c, ok := f.creds[credID]
+	if !ok || c.VaultID != vaultID {
+		writeAPIErr(w, http.StatusNotFound, "not_found_error", "no such credential")
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(c)
+}
+
+func (f *fakeAPI) credUpdate(w http.ResponseWriter, r *http.Request, vaultID, credID string) {
+	var body struct {
+		DisplayName *string        `json:"display_name"`
+		Auth        map[string]any `json:"auth"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeAPIErr(w, http.StatusBadRequest, "invalid_request_error", err.Error())
+		return
+	}
+
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	c, ok := f.creds[credID]
+	if !ok || c.VaultID != vaultID {
+		writeAPIErr(w, http.StatusNotFound, "not_found_error", "no such credential")
+		return
+	}
+	if c.ArchivedAt != nil {
+		writeAPIErr(w, http.StatusConflict, "conflict_error", "credential is archived")
+		return
+	}
+	if body.DisplayName != nil {
+		c.DisplayName = *body.DisplayName
+	}
+	if body.Auth != nil {
+		// Merge by overwriting non-locked fields and scrubbing secrets.
+		for k, v := range scrubCredentialSecrets(body.Auth) {
+			c.Auth[k] = v
+		}
+	}
+	c.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(c)
+}
+
+func (f *fakeAPI) credArchive(w http.ResponseWriter, vaultID, credID string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	c, ok := f.creds[credID]
+	if !ok || c.VaultID != vaultID {
+		writeAPIErr(w, http.StatusNotFound, "not_found_error", "no such credential")
+		return
+	}
+	now := time.Now().UTC().Format(time.RFC3339)
+	c.ArchivedAt = &now
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(c)
+}
+
+func (f *fakeAPI) credDelete(w http.ResponseWriter, vaultID, credID string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	c, ok := f.creds[credID]
+	if !ok || c.VaultID != vaultID {
+		writeAPIErr(w, http.StatusNotFound, "not_found_error", "no such credential")
+		return
+	}
+	delete(f.creds, c.ID)
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(`{}`))
+}
+
+func (f *fakeAPI) credList(w http.ResponseWriter, r *http.Request, vaultID string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	includeArchived := r.URL.Query().Get("include_archived") == "true"
+	out := struct {
+		Data    []*fakeVaultCredential `json:"data"`
+		HasMore bool                   `json:"has_more"`
+		FirstID string                 `json:"first_id"`
+		LastID  string                 `json:"last_id"`
+	}{Data: []*fakeVaultCredential{}}
+	for _, c := range f.creds {
+		if c.VaultID != vaultID {
+			continue
+		}
+		if c.ArchivedAt != nil && !includeArchived {
+			continue
+		}
+		out.Data = append(out.Data, c)
+	}
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(out)
+}
+
+// scrubCredentialSecrets emulates the API's behavior of never returning
+// secret values on read. We strip the four secret keys and any nested
+// equivalents from the auth object before storing it.
+func scrubCredentialSecrets(in map[string]any) map[string]any {
+	out := make(map[string]any, len(in))
+	for k, v := range in {
+		switch k {
+		case "token", "access_token":
+			continue
+		case "refresh":
+			if nested, ok := v.(map[string]any); ok {
+				clean := make(map[string]any, len(nested))
+				for nk, nv := range nested {
+					if nk == "refresh_token" {
+						continue
+					}
+					if nk == "token_endpoint_auth" {
+						if auth, ok := nv.(map[string]any); ok {
+							authClean := make(map[string]any, len(auth))
+							for ak, av := range auth {
+								if ak == "client_secret" {
+									continue
+								}
+								authClean[ak] = av
+							}
+							clean[nk] = authClean
+							continue
+						}
+					}
+					clean[nk] = nv
+				}
+				out[k] = clean
+				continue
+			}
+		}
+		out[k] = v
+	}
+	return out
 }
 
 func writeAPIErr(w http.ResponseWriter, status int, typ, msg string) {

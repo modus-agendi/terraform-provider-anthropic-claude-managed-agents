@@ -104,6 +104,8 @@ func (p *claudeProvider) Resources(_ context.Context) []func() resource.Resource
 		newAgentResource,
 		newEnvironmentResource,
 		newMemoryStoreResource,
+		newVaultResource,
+		newVaultCredentialResource,
 	}
 }
 
@@ -112,5 +114,7 @@ func (p *claudeProvider) DataSources(_ context.Context) []func() datasource.Data
 		newAgentDataSource,
 		newEnvironmentDataSource,
 		newMemoryStoreDataSource,
+		newVaultDataSource,
+		newVaultCredentialDataSource,
 	}
 }
