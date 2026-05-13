@@ -8,11 +8,14 @@ coverage:
   status:
     project:
       default:
-        target: 70%
+        # Aspirational total target. We currently sit at ~85% — see CLAUDE.md
+        # "Coverage target". A small threshold absorbs noise from refactors.
+        target: 85%
         threshold: 1%
     patch:
       default:
-        target: 75%
+        # New code in a PR must hit the target. No slack on patch coverage.
+        target: 85%
         threshold: 0%
 
 ignore:
