@@ -163,13 +163,37 @@ func redactJSON(b []byte) string {
 	return string(out)
 }
 
+// nonSecretKeySuffixes lists field names that contain a secret-like substring
+// ("token", "secret") but are themselves not secrets — typically OAuth
+// metadata or write-only-version counters. Keeping them in clear in debug
+// logs makes triage useful.
+var nonSecretKeySuffixes = []string{
+	"_endpoint",      // e.g. token_endpoint
+	"_endpoint_auth", // e.g. token_endpoint_auth
+	"_wo_version",    // e.g. token_wo_version (TF write-only rotation counter)
+}
+
+func isSecretKey(k string) bool {
+	lower := strings.ToLower(k)
+	for _, suf := range nonSecretKeySuffixes {
+		if strings.HasSuffix(lower, suf) {
+			return false
+		}
+	}
+	if strings.Contains(lower, "token") ||
+		strings.Contains(lower, "secret") ||
+		strings.Contains(lower, "password") ||
+		strings.Contains(lower, "passphrase") ||
+		lower == "api_key" ||
+		lower == "x-api-key" {
+		return true
+	}
+	return false
+}
+
 func redactMap(m map[string]any) {
 	for k, v := range m {
-		lower := strings.ToLower(k)
-		if strings.Contains(lower, "token") ||
-			strings.Contains(lower, "secret") ||
-			lower == "api_key" ||
-			lower == "x-api-key" {
+		if isSecretKey(k) {
 			m[k] = "***"
 			continue
 		}

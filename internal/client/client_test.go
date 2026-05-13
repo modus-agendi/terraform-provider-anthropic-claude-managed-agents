@@ -163,6 +163,37 @@ func TestRedactJSON_InvalidJSONPassesThrough(t *testing.T) {
 	}
 }
 
+func TestRedactJSON_PreservesOAuthMetadataKeys(t *testing.T) {
+	// token_endpoint, token_endpoint_auth, and *_wo_version are NOT secrets
+	// even though their names contain "token" / "secret". They must survive
+	// redaction so debug logs stay useful.
+	in := []byte(`{
+		"token_endpoint": "https://slack.com/api/oauth.v2.access",
+		"token_endpoint_auth": {"type":"client_secret_post"},
+		"token_wo_version": 3,
+		"refresh_token": "rt-xxx"
+	}`)
+	got := redactJSON(in)
+	for _, kept := range []string{"slack.com", "client_secret_post", `"token_wo_version":3`} {
+		if !strings.Contains(got, kept) {
+			t.Errorf("redacted output lost non-secret field %q: %s", kept, got)
+		}
+	}
+	if strings.Contains(got, "rt-xxx") {
+		t.Errorf("refresh_token value leaked: %s", got)
+	}
+}
+
+func TestRedactJSON_MasksPasswordAndPassphrase(t *testing.T) {
+	in := []byte(`{"password":"hunter2","passphrase":"correct horse"}`)
+	got := redactJSON(in)
+	for _, banned := range []string{"hunter2", "correct horse"} {
+		if strings.Contains(got, banned) {
+			t.Errorf("redacted output still contains %q: %s", banned, got)
+		}
+	}
+}
+
 func TestDo_401AuthenticationError(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
