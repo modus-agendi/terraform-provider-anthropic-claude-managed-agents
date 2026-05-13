@@ -174,4 +174,12 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+      # tfplugindocs introspects the provider schema by running `terraform
+      # providers schema -json`. Without a pre-installed Terraform on PATH it
+      # falls back to hc-install which currently fails ("openpgp: key expired")
+      # because HashiCorp's checksum-signing key has expired.
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.10.*"
+          terraform_wrapper: false
       - run: make docscheck

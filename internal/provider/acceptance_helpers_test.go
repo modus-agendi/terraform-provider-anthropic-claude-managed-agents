@@ -4,7 +4,6 @@ import (
 	"crypto/rand"
 	"fmt"
 	"os"
-	"testing"
 )
 
 // randomTestName returns a unique resource name suitable for live tests. The
@@ -26,15 +25,6 @@ func randomTestName(purpose string) string {
 // the env var directly.
 func liveMode() bool {
 	return os.Getenv("TF_ACC_LIVE") == "1"
-}
-
-// requireLive skips the calling test if live mode is not active. Use for
-// tests that only make sense against the real API.
-func requireLive(t *testing.T) {
-	t.Helper()
-	if !liveMode() {
-		t.Skip("set TF_ACC_LIVE=1 to run live-only tests")
-	}
 }
 
 // testAgentName returns a name appropriate for the current test mode. In
