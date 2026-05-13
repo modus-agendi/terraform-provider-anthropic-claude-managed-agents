@@ -1,15 +1,25 @@
-# Look up an existing memory store by id. Useful when the store was created
-# outside of Terraform and you want to read its description (which surfaces
-# in agent system prompts when the store is attached to a session).
+terraform {
+  required_providers {
+    claude-managed-agents = {
+      source  = "andasv/claude-managed-agents"
+      version = "~> 0.2"
+    }
+  }
+}
 
-data "claude-managed-agents_memory_store" "existing" {
+provider "claude-managed-agents" {}
+
+# Look up an existing memory store. The description is what gets surfaced
+# in the agent's system prompt when the store is attached to a session, so
+# read it to verify the model context an existing store provides.
+data "claude-managed-agents_memory_store" "user_preferences" {
   id = "memstore_01HqR2k7vXbZ9mNpL3wYcT8f"
 }
 
-output "existing_store_name" {
-  value = data.claude-managed-agents_memory_store.existing.name
+output "store_name" {
+  value = data.claude-managed-agents_memory_store.user_preferences.name
 }
 
-output "existing_store_description" {
-  value = data.claude-managed-agents_memory_store.existing.description
+output "store_description" {
+  value = data.claude-managed-agents_memory_store.user_preferences.description
 }

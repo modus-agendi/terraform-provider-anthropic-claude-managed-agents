@@ -1,0 +1,4 @@
+# Copy this file to terraform.tfvars and fill in real values.
+# Never commit terraform.tfvars.
+
+linear_token = "lin_api_REPLACE_ME"

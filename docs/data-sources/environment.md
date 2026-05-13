@@ -13,20 +13,33 @@ Look up an existing Claude Managed Agents environment by id.
 ## Example Usage
 
 ```terraform
-# Look up an existing sandbox environment by id. Useful when the environment
-# was created outside of Terraform (e.g. via the SDK) and you want to read
-# its current networking policy or package list.
+terraform {
+  required_providers {
+    claude-managed-agents = {
+      source  = "andasv/claude-managed-agents"
+      version = "~> 0.2"
+    }
+  }
+}
 
-data "claude-managed-agents_environment" "existing" {
+provider "claude-managed-agents" {}
+
+# Look up an existing sandbox environment. Useful for reading the current
+# networking policy or package list of an environment created via the SDK.
+data "claude-managed-agents_environment" "production" {
   id = "env_01HqR2k7vXbZ9mNpL3wYcT8f"
 }
 
-output "existing_env_name" {
-  value = data.claude-managed-agents_environment.existing.name
+output "env_name" {
+  value = data.claude-managed-agents_environment.production.name
 }
 
-output "existing_env_networking_type" {
-  value = data.claude-managed-agents_environment.existing.config.networking.type
+output "env_networking_type" {
+  value = data.claude-managed-agents_environment.production.config.networking.type
+}
+
+output "env_allowed_hosts" {
+  value = data.claude-managed-agents_environment.production.config.networking.allowed_hosts
 }
 ```
 

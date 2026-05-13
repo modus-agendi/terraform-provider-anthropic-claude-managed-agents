@@ -1,0 +1,21 @@
+# gitleaks config — extends the upstream default ruleset (no rules dropped).
+# https://github.com/gitleaks/gitleaks#configuration
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Allowlist for example / fixture files that ship placeholder values."
+
+# .tfvars.example files exist specifically to document the shape of secrets
+# users must supply; they are never the secrets themselves. The matching
+# terraform.tfvars file is gitignored and is where real values live.
+paths = [
+    '''\.tfvars\.example$''',
+]
+
+# Any value matching this regex is a placeholder, not a real secret.
+regexes = [
+    '''REPLACE_ME''',
+    '''YOUR_[A-Z_]+_HERE''',
+]

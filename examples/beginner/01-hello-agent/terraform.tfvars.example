@@ -1,0 +1,4 @@
+# This example needs no Terraform variables. The provider reads
+# ANTHROPIC_API_KEY from the environment.
+#
+#   export ANTHROPIC_API_KEY=sk-ant-...
