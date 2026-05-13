@@ -23,26 +23,28 @@ This provider lets you put that configuration under Terraform so you can:
 
 ## Status / scope
 
-v0.1 shipped a deliberately narrow agent-only surface. v0.2 expands to
-environments, vaults, vault credentials, memory stores, and exposes the
+v0.1 shipped a deliberately narrow agent-only surface. v0.2 expanded to
+environments, vaults, vault credentials, memory stores, and exposed the
 agent nested config (tools, MCP servers, skills, multiagent) as first-class
-HCL.
+HCL. v0.3 adds end-to-end skill management.
 
-| Capability | v0.1 | v0.2 |
-|---|---|---|
-| Resource `claude-managed-agents_agent` (flat fields: name, model, system, description, metadata) | yes | yes |
-| Data source `claude-managed-agents_agent` | yes | yes |
-| Resource `claude-managed-agents_environment` | — | yes |
-| Data source `claude-managed-agents_environment` | — | yes |
-| Resource `claude-managed-agents_vault` | — | yes |
-| Data source `claude-managed-agents_vault` | — | yes |
-| Resource `claude-managed-agents_vault_credential` (TF 1.11 write-only secrets) | — | yes |
-| Data source `claude-managed-agents_vault_credential` | — | yes |
-| Resource `claude-managed-agents_memory_store` | — | yes |
-| Data source `claude-managed-agents_memory_store` | — | yes |
-| Agent nested HCL: `mcp_servers`, `skills`, `multiagent`, `tools` (all three tool variants) | — | yes |
-| Data source `claude-managed-agents_agent_version` | — | yes |
-| Data source `claude-managed-agents_file` | — | yes |
+| Capability | v0.1 | v0.2 | v0.3 (unreleased) |
+|---|---|---|---|
+| Resource `claude-managed-agents_agent` (flat fields: name, model, system, description, metadata) | yes | yes | yes |
+| Data source `claude-managed-agents_agent` | yes | yes | yes |
+| Resource `claude-managed-agents_environment` | — | yes | yes |
+| Data source `claude-managed-agents_environment` | — | yes | yes |
+| Resource `claude-managed-agents_vault` | — | yes | yes |
+| Data source `claude-managed-agents_vault` | — | yes | yes |
+| Resource `claude-managed-agents_vault_credential` (TF 1.11 write-only secrets) | — | yes | yes |
+| Data source `claude-managed-agents_vault_credential` | — | yes | yes |
+| Resource `claude-managed-agents_memory_store` | — | yes | yes |
+| Data source `claude-managed-agents_memory_store` | — | yes | yes |
+| Agent nested HCL: `mcp_servers`, `skills`, `multiagent`, `tools` (all three tool variants) | — | yes | yes |
+| Data source `claude-managed-agents_agent_version` | — | yes | yes |
+| Data source `claude-managed-agents_file` | — | yes | yes |
+| Resource `claude-managed-agents_skill` (multipart upload, content-hash drift detection) | — | — | yes |
+| Data source `claude-managed-agents_skill` (prebuilt + custom) | — | — | yes |
 
 Existing v0.1 agents that have server-side state in `tools`, `mcp_servers`,
 `skills`, or `multiagent` will see Terraform plan to set them on the next
@@ -114,6 +116,7 @@ provider "claude-managed-agents" {
 | Resource | `claude-managed-agents_agent` | [docs/resources/agent.md](docs/resources/agent.md) |
 | Resource | `claude-managed-agents_environment` | [docs/resources/environment.md](docs/resources/environment.md) |
 | Resource | `claude-managed-agents_memory_store` | [docs/resources/memory_store.md](docs/resources/memory_store.md) |
+| Resource | `claude-managed-agents_skill` | [docs/resources/skill.md](docs/resources/skill.md) |
 | Resource | `claude-managed-agents_vault` | [docs/resources/vault.md](docs/resources/vault.md) |
 | Resource | `claude-managed-agents_vault_credential` | [docs/resources/vault_credential.md](docs/resources/vault_credential.md) |
 | Data source | `claude-managed-agents_agent` | [docs/data-sources/agent.md](docs/data-sources/agent.md) |
@@ -121,6 +124,7 @@ provider "claude-managed-agents" {
 | Data source | `claude-managed-agents_environment` | [docs/data-sources/environment.md](docs/data-sources/environment.md) |
 | Data source | `claude-managed-agents_file` | [docs/data-sources/file.md](docs/data-sources/file.md) |
 | Data source | `claude-managed-agents_memory_store` | [docs/data-sources/memory_store.md](docs/data-sources/memory_store.md) |
+| Data source | `claude-managed-agents_skill` | [docs/data-sources/skill.md](docs/data-sources/skill.md) |
 | Data source | `claude-managed-agents_vault` | [docs/data-sources/vault.md](docs/data-sources/vault.md) |
 | Data source | `claude-managed-agents_vault_credential` | [docs/data-sources/vault_credential.md](docs/data-sources/vault_credential.md) |
 
@@ -171,6 +175,14 @@ terraform {
 }
 ```
 
+> **Gotcha — `make install` shadows registry releases.** `make install`
+> copies the binary into `~/.terraform.d/plugins/registry.terraform.io/andasv/claude-managed-agents/`,
+> which Terraform treats as the authoritative version source. Any
+> external config that pins a different version (e.g. `version = "~> 0.2"`)
+> will fail `terraform init` with "no available releases match the given
+> constraints". Run `rm -rf ~/.terraform.d/plugins/registry.terraform.io/andasv`
+> to drop back to registry-pulled releases.
+
 ## Versioning
 
 The provider follows [Semantic Versioning](https://semver.org). Pre-1.0 releases reserve the right to make minor breaking changes between minor versions, documented in `CHANGELOG.md`. Post-1.0 will respect semver strictly.
@@ -186,7 +198,9 @@ A breaking change is one of:
 
 v0.2 shipped the full surface: environments, vaults + vault credentials, memory stores, agent nested blocks (tools, MCP servers, skills, multiagent), agent_version and file data sources.
 
-v0.3 candidates: a skills data source if upstream publishes a REST lookup endpoint, and an ephemeral resource for vault-credential validation. Sessions, dreams, memory contents/versions, and webhook endpoints are not currently on the roadmap. Open an issue if you'd like to discuss.
+v0.3 adds end-to-end custom skill management: a `claude-managed-agents_skill` resource (multipart upload, content-hash drift detection, 30 MB cap, cascade-delete on destroy) plus a data source that works for both Anthropic prebuilt skills and custom skills.
+
+v0.4 candidates: an ephemeral resource for vault-credential validation, optional skill version retention attributes. Sessions, dreams, memory contents/versions, and webhook endpoints are not currently on the roadmap. Open an issue if you'd like to discuss.
 
 ## Contributing
 
