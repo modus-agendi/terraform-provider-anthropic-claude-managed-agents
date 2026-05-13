@@ -1,3 +1,9 @@
+// Package client is the HTTP transport for the Anthropic Managed Agents
+// REST API. It hand-rolls retries, typed errors, and request-ID capture on
+// top of net/http via retryablehttp, and exposes one Go method per API
+// operation (CreateAgent, GetAgent, …). It deliberately depends on nothing
+// from terraform-plugin-framework so it could be lifted into a standalone
+// SDK if needed.
 package client
 
 import (

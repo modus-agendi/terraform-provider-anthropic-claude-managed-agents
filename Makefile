@@ -177,6 +177,26 @@ coverage-show: ## Print per-function coverage breakdown (uses existing coverage.
 	@test -f $(COVERAGE_OUT) || { echo "no $(COVERAGE_OUT); run 'make coverage' first"; exit 1; }
 	@go tool cover -func=$(COVERAGE_OUT)
 
+.PHONY: coverage-split
+coverage-split: ## Mirror CI: produce coverage-unit.out (client only) + coverage-acc.out (all internal w/ TF_ACC=1)
+	go test -race \
+		-coverprofile=coverage-unit.out \
+		-coverpkg=./internal/client/... \
+		-covermode=atomic \
+		-count=1 \
+		-timeout 5m \
+		./internal/client/...
+	@go tool cover -func=coverage-unit.out | tail -1
+	TF_ACC=1 go test \
+		-coverprofile=coverage-acc.out \
+		-coverpkg=./internal/... \
+		-covermode=atomic \
+		-count=1 \
+		-parallel 4 \
+		-timeout $(TIMEOUT) \
+		./internal/provider/...
+	@go tool cover -func=coverage-acc.out | tail -1
+
 # ===========================================================================
 ##@ Code quality
 

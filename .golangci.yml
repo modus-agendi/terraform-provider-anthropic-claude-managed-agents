@@ -30,9 +30,12 @@ linters-settings:
   revive:
     rules:
       - name: var-naming
-      - name: exported
-        disabled: true
       - name: package-comments
+      # `exported` is disabled because internal/* packages are not part of
+      # the public Go API surface — adding godoc to every helper would be
+      # noise. Per-file doc comments and types.go-style commentary cover the
+      # WHY where it matters.
+      - name: exported
         disabled: true
   errcheck:
     # The test helpers intentionally ignore errors on response writes.

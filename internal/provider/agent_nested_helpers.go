@@ -21,6 +21,8 @@ func mcpServerObjectAttrTypes() map[string]attr.Type {
 	}
 }
 
+// skillObjectAttrTypes returns the attribute-type map for one entry of the
+// agent's `skills` list.
 func skillObjectAttrTypes() map[string]attr.Type {
 	return map[string]attr.Type{
 		"type":     types.StringType,
@@ -29,6 +31,8 @@ func skillObjectAttrTypes() map[string]attr.Type {
 	}
 }
 
+// multiagentObjectAttrTypes returns the attribute-type map for the
+// `multiagent` single-nested coordinator block.
 func multiagentObjectAttrTypes() map[string]attr.Type {
 	return map[string]attr.Type{
 		"type":   types.StringType,
@@ -36,6 +40,8 @@ func multiagentObjectAttrTypes() map[string]attr.Type {
 	}
 }
 
+// multiagentMemberObjectAttrTypes returns the attribute-type map for one
+// entry of the coordinator's `agents` list.
 func multiagentMemberObjectAttrTypes() map[string]attr.Type {
 	return map[string]attr.Type{
 		"type": types.StringType,
@@ -91,6 +97,7 @@ func mcpServersListToAPI(ctx context.Context, l types.List) ([]client.McpServer,
 	return out, diags
 }
 
+// skillsListFromAPI mirrors mcpServersListFromAPI for the `skills` field.
 func skillsListFromAPI(ctx context.Context, skills []client.Skill) (types.List, diag.Diagnostics) {
 	objType := types.ObjectType{AttrTypes: skillObjectAttrTypes()}
 	var diags diag.Diagnostics
@@ -113,6 +120,7 @@ func skillsListFromAPI(ctx context.Context, skills []client.Skill) (types.List, 
 	return list, diags
 }
 
+// skillsListToAPI is the inverse of skillsListFromAPI.
 func skillsListToAPI(ctx context.Context, l types.List) ([]client.Skill, diag.Diagnostics) {
 	if l.IsNull() || l.IsUnknown() {
 		return nil, nil
@@ -181,6 +189,8 @@ func multiagentFromAPI(ctx context.Context, m *client.Multiagent, parentID strin
 
 // --- tools mapping ---
 
+// toolObjectAttrTypes is the union shape: every variant's fields are
+// present; only the relevant ones are populated per entry.
 func toolObjectAttrTypes() map[string]attr.Type {
 	return map[string]attr.Type{
 		"type":            types.StringType,
@@ -212,6 +222,8 @@ func toolConfigEntryAttrTypes() map[string]attr.Type {
 	}
 }
 
+// permissionPolicyAttrTypes is the single-field shape for both default and
+// per-tool permission policies (`always_allow` or `always_ask`).
 func permissionPolicyAttrTypes() map[string]attr.Type {
 	return map[string]attr.Type{
 		"type": types.StringType,
@@ -296,6 +308,8 @@ type priorTool struct {
 	Configs       types.List
 }
 
+// decodeToolsPrior extracts the (default_config, configs) tuples from a
+// prior-state tools list so toolsListFromAPI can preserve them through Read.
 func decodeToolsPrior(ctx context.Context, prior types.List, diags *diag.Diagnostics) []priorTool {
 	if prior.IsNull() || prior.IsUnknown() {
 		return nil
@@ -321,6 +335,9 @@ func decodeToolsPrior(ctx context.Context, prior types.List, diags *diag.Diagnos
 	return out
 }
 
+// toolsListToAPI flattens the HCL `tools` list into the client struct slice.
+// Null/unknown inputs return nil (treated by the caller as "leave unchanged"
+// or "send no tools field").
 func toolsListToAPI(ctx context.Context, l types.List) ([]client.Tool, diag.Diagnostics) {
 	if l.IsNull() || l.IsUnknown() {
 		return nil, nil
@@ -394,6 +411,8 @@ func toolConfigToAPI(ctx context.Context, obj types.Object) (*client.ToolConfig,
 	return out, diags
 }
 
+// toolConfigListToAPI maps a configs list (each entry has a `name`) into
+// the client struct slice.
 func toolConfigListToAPI(ctx context.Context, l types.List) ([]client.ToolConfig, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	type entry struct {
@@ -423,6 +442,7 @@ func toolConfigListToAPI(ctx context.Context, l types.List) ([]client.ToolConfig
 	return out, diags
 }
 
+// permissionPolicyToAPI extracts {type: "..."} from the nested object.
 func permissionPolicyToAPI(ctx context.Context, obj types.Object) (*client.PermissionPolicy, diag.Diagnostics) {
 	if obj.IsNull() || obj.IsUnknown() {
 		return nil, nil
@@ -438,6 +458,7 @@ func permissionPolicyToAPI(ctx context.Context, obj types.Object) (*client.Permi
 	return &client.PermissionPolicy{Type: raw.Type.ValueString()}, diags
 }
 
+// multiagentToAPI is the inverse of multiagentFromAPI for the create/update path.
 func multiagentToAPI(ctx context.Context, obj types.Object) (*client.Multiagent, diag.Diagnostics) {
 	if obj.IsNull() || obj.IsUnknown() {
 		return nil, nil

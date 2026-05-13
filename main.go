@@ -1,3 +1,7 @@
+// Command terraform-provider-claude-managed-agents is the plugin binary
+// for the Anthropic Managed Agents Terraform / OpenTofu provider. It is
+// invoked by the Terraform CLI through the plugin protocol; see
+// internal/provider for the actual schemas and CRUD implementations.
 package main
 
 import (
