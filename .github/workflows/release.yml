@@ -107,6 +107,13 @@ jobs:
   # the dedicated reusable workflow which runs in an isolated job that the
   # release job cannot tamper with.
   #
+  # MUST be pinned by tag (not SHA) — the documented exception to our
+  # "pin everything by SHA" rule. The reusable workflow introspects its own
+  # ref via generate-builder.sh and rejects anything that isn't
+  # `refs/tags/vX.Y.Z`; the builder-identity attestation it issues to
+  # Sigstore is bound to that tag. See:
+  # https://github.com/slsa-framework/slsa-github-generator/blob/main/RUNNERS.md
+  #
   # `private-repository: true` is set because the generator's repo-visibility
   # detection mis-reads this public repo as private and aborts. The flag's
   # only effect is acknowledging that the repo name will appear in the
@@ -117,7 +124,7 @@ jobs:
       actions: read
       id-token: write
       contents: write
-    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@5a775b367a56d5bd118a224a811bba288150a563 # v2.0.0
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.0.0
     with:
       base64-subjects: ${{ needs.release.outputs.hashes }}
       upload-assets: true
