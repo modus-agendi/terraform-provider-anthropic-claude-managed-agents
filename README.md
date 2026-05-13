@@ -23,26 +23,30 @@ This provider lets you put that configuration under Terraform so you can:
 
 ## Status / scope
 
-**v0.1 is intentionally narrow** so the release surface is something the maintainer can support. Additional resources will land in follow-up minor versions.
+v0.1 shipped a deliberately narrow agent-only surface. v0.2 expands to
+environments, vaults, vault credentials, memory stores, and exposes the
+agent nested config (tools, MCP servers, skills, multiagent) as first-class
+HCL.
 
-| Capability | v0.1 | Planned |
+| Capability | v0.1 | v0.2 |
 |---|---|---|
-| Resource `claude-managed-agents_agent` (flat fields) | yes | — |
-| Data source `claude-managed-agents_agent` | yes | — |
-| Resource `claude-managed-agents_environment` | yes (unreleased) | — |
-| Data source `claude-managed-agents_environment` | yes (unreleased) | — |
-| Resource `claude-managed-agents_vault` | yes (unreleased) | — |
-| Data source `claude-managed-agents_vault` | yes (unreleased) | — |
-| Resource `claude-managed-agents_vault_credential` | yes (unreleased) | — |
-| Data source `claude-managed-agents_vault_credential` | yes (unreleased) | — |
-| Resource `claude-managed-agents_memory_store` | yes (unreleased) | — |
-| Data source `claude-managed-agents_memory_store` | yes (unreleased) | — |
-| Nested blocks on agent (`mcp_servers`, `skills`, `multiagent`, `tools`) | yes (unreleased) | — |
-| Data source `claude-managed-agents_agent_version` | yes (unreleased) | — |
-| Data source `claude-managed-agents_file` | yes (unreleased) | — |
-| Data source for skills | — | follow-up (no API endpoint yet) |
+| Resource `claude-managed-agents_agent` (flat fields: name, model, system, description, metadata) | yes | yes |
+| Data source `claude-managed-agents_agent` | yes | yes |
+| Resource `claude-managed-agents_environment` | — | yes |
+| Data source `claude-managed-agents_environment` | — | yes |
+| Resource `claude-managed-agents_vault` | — | yes |
+| Data source `claude-managed-agents_vault` | — | yes |
+| Resource `claude-managed-agents_vault_credential` (TF 1.11 write-only secrets) | — | yes |
+| Data source `claude-managed-agents_vault_credential` | — | yes |
+| Resource `claude-managed-agents_memory_store` | — | yes |
+| Data source `claude-managed-agents_memory_store` | — | yes |
+| Agent nested HCL: `mcp_servers`, `skills`, `multiagent`, `tools` (all three tool variants) | — | yes |
+| Data source `claude-managed-agents_agent_version` | — | yes |
+| Data source `claude-managed-agents_file` | — | yes |
 
-Existing v0.1 agents that have server-side state in `tools`, `mcp_servers`, `skills`, or `multiagent` will see Terraform plan to set them on the next refresh. Adding the matching HCL declaration is a no-op.
+Existing v0.1 agents that have server-side state in `tools`, `mcp_servers`,
+`skills`, or `multiagent` will see Terraform plan to set them on the next
+refresh after upgrading. Adding the matching HCL declaration is a no-op.
 
 ## Quickstart
 
@@ -53,7 +57,7 @@ terraform {
   required_providers {
     claude-managed-agents = {
       source  = "andasv/claude-managed-agents"
-      version = "~> 0.1"
+      version = "~> 0.2"
     }
   }
 }
@@ -93,6 +97,8 @@ The provider reads credentials from, in order of precedence:
 
 `api_key` is marked `Sensitive` in the schema, so it will not appear in plan diffs. It is still written to state if you set it in HCL — prefer the environment variable in production and CI.
 
+`claude-managed-agents_vault_credential` uses Terraform 1.11 write-only attributes for its secret fields (`token`, `access_token`, `refresh_token`, `client_secret`): these values are never persisted to state. Rotate by incrementing the matching `*_wo_version` integer.
+
 ```hcl
 provider "claude-managed-agents" {
   api_key     = var.anthropic_api_key   # only set this if env var is impractical
@@ -120,9 +126,12 @@ provider "claude-managed-agents" {
 
 ## Lifecycle gotchas
 
-- **Destroy maps to archive.** The upstream API has no `DELETE /v1/agents/{id}` endpoint. `terraform destroy` issues `POST /v1/agents/{id}/archive`. Archived agents are read-only and cannot be unarchived.
+- **Agent destroy maps to archive.** The upstream API has no `DELETE /v1/agents/{id}` endpoint. `terraform destroy` issues `POST /v1/agents/{id}/archive`. Archived agents are read-only and cannot be unarchived.
 - **`version` is server-managed.** The provider passes it along on update for optimistic concurrency. If you see version conflicts in plans, refresh the state with `terraform apply -refresh-only`.
-- **`metadata` is key-level merged.** Removing a key from your HCL causes the provider to send that key with an empty-string value, which the API treats as a delete.
+- **`metadata` is key-level merged.** The upstream API uses merge semantics: removing a key from your HCL causes the provider to send JSON null for that key, which the API treats as a delete. Applies to both `claude-managed-agents_agent.metadata` and `claude-managed-agents_vault.metadata`.
+- **Environments are immutable.** The API has no environment update endpoint, so every attribute on `claude-managed-agents_environment` is `ForceNew`. Any change triggers replacement. Destroy issues `DELETE /v1/environments/{id}` and falls back to archive if the API returns 409 (active session reference).
+- **Vault and memory_store destroy archives by default.** Set `delete_on_destroy = true` on the resource to hard-delete instead. Vault archive cascades through credentials; memory_store hard-delete cascades through memories and memory versions.
+- **Vault-credential secrets are write-only.** Secret fields are never read back from the API. Rotate by incrementing the corresponding `token_wo_version`, `access_token_wo_version`, `refresh_token_wo_version`, or `client_secret_wo_version` integer. `auth.type`, `auth.mcp_server_url`, `auth.refresh.token_endpoint`, and `auth.refresh.client_id` are immutable (RequiresReplace).
 
 ## OpenTofu compatibility
 
@@ -137,13 +146,16 @@ git clone https://github.com/andasv/terraform-provider-claude-managed-agents
 cd terraform-provider-claude-managed-agents
 go mod download
 
-make test          # unit tests
-make testacc       # acceptance tests, httptest fixture (free)
-make testacc-live  # acceptance tests against api.anthropic.com (requires ANTHROPIC_API_KEY)
+make test            # unit tests
+make testacc         # acceptance tests, httptest fixture (free)
+make testacc-live    # acceptance tests against api.anthropic.com (requires ANTHROPIC_API_KEY)
 make lint
-make docs          # regenerate docs/ via tfplugindocs
+make docs            # regenerate docs/ via tfplugindocs
+make coverage-html   # full coverage profile + HTML report
+make coverage-split  # mirrors CI: split unit + acceptance profiles
+make pr              # full local PR-check pipeline (mirrors CI)
 
-make install       # build + install into ~/.terraform.d/plugins/...
+make install         # build + install into ~/.terraform.d/plugins/...
 ```
 
 Once installed locally, pin the dev version in your test `main.tf`:
@@ -172,13 +184,21 @@ A breaking change is one of:
 
 ## Roadmap
 
-All v0.2 surface (environments, vaults + vault credentials, memory stores, agent nested blocks, agent_version + file data sources) is implemented and unreleased pending tagging.
+v0.2 shipped the full surface: environments, vaults + vault credentials, memory stores, agent nested blocks (tools, MCP servers, skills, multiagent), agent_version and file data sources.
 
-Sessions, dreams, memory contents/versions, and webhook endpoints are not currently on the roadmap. The skills data source is deferred until upstream documents a REST lookup endpoint. Open an issue if you'd like to discuss.
+v0.3 candidates: a skills data source if upstream publishes a REST lookup endpoint, and an ephemeral resource for vault-credential validation. Sessions, dreams, memory contents/versions, and webhook endpoints are not currently on the roadmap. Open an issue if you'd like to discuss.
 
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## Community
+
+- [SECURITY.md](SECURITY.md) — how to report vulnerabilities privately.
+- [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) — expected conduct for contributors and maintainers.
+- [Issue templates](.github/ISSUE_TEMPLATE) — structured bug reports and feature requests.
+- [Pull request template](.github/PULL_REQUEST_TEMPLATE.md) — checklist for opening a PR.
+- [CODEOWNERS](.github/CODEOWNERS) — review routing.
 
 ## License
 
