@@ -41,6 +41,8 @@ type fakeAPI struct {
 	stores         map[string]*fakeMemoryStore
 	vaults         map[string]*fakeVault
 	creds          map[string]*fakeVaultCredential // keyed by credential id
+	files          map[string]*fakeFile
+	agentVersions  map[string][]map[string]any // agent_id → snapshots
 	counter        int
 	envCounter     int
 	storeCounter   int
@@ -107,6 +109,16 @@ type fakeEnvironment struct {
 	ArchivedAt *string        `json:"archived_at"`
 }
 
+type fakeFile struct {
+	ID        string `json:"id"`
+	Type      string `json:"type"`
+	Filename  string `json:"filename"`
+	SizeBytes int64  `json:"size_bytes"`
+	MimeType  string `json:"mime_type"`
+	ScopeID   string `json:"scope_id"`
+	CreatedAt string `json:"created_at"`
+}
+
 func newFakeAPI() *fakeAPI {
 	return &fakeAPI{
 		agents:         map[string]*fakeAgent{},
@@ -115,7 +127,24 @@ func newFakeAPI() *fakeAPI {
 		stores:         map[string]*fakeMemoryStore{},
 		vaults:         map[string]*fakeVault{},
 		creds:          map[string]*fakeVaultCredential{},
+		files:          map[string]*fakeFile{},
+		agentVersions:  map[string][]map[string]any{},
 	}
+}
+
+// SeedFile installs a fake file record so the file data source can resolve it.
+func (f *fakeAPI) SeedFile(file *fakeFile) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.files[file.ID] = file
+}
+
+// SeedAgentVersion adds a version snapshot under agentID. The order of
+// snapshots is significant — list returns them in insertion order.
+func (f *fakeAPI) SeedAgentVersion(agentID string, snapshot map[string]any) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.agentVersions[agentID] = append(f.agentVersions[agentID], snapshot)
 }
 
 // DeleteAllStores wipes the memory store map. Use to simulate an
@@ -210,9 +239,18 @@ func (f *fakeAPI) handler() http.Handler {
 	})
 
 	archiveRe := regexp.MustCompile(`^/v1/agents/([^/]+)/archive$`)
+	versionsRe := regexp.MustCompile(`^/v1/agents/([^/]+)/versions$`)
 	itemRe := regexp.MustCompile(`^/v1/agents/([^/]+)$`)
 
 	mux.HandleFunc("/v1/agents/", func(w http.ResponseWriter, r *http.Request) {
+		if m := versionsRe.FindStringSubmatch(r.URL.Path); m != nil {
+			if r.Method != http.MethodGet {
+				http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+				return
+			}
+			f.agentVersionsList(w, m[1])
+			return
+		}
 		if m := archiveRe.FindStringSubmatch(r.URL.Path); m != nil {
 			if r.Method != http.MethodPost {
 				http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -248,6 +286,19 @@ func (f *fakeAPI) handler() http.Handler {
 
 	envArchiveRe := regexp.MustCompile(`^/v1/environments/([^/]+)/archive$`)
 	envItemRe := regexp.MustCompile(`^/v1/environments/([^/]+)$`)
+
+	fileItemRe := regexp.MustCompile(`^/v1/files/([^/]+)$`)
+	mux.HandleFunc("/v1/files/", func(w http.ResponseWriter, r *http.Request) {
+		if m := fileItemRe.FindStringSubmatch(r.URL.Path); m != nil {
+			if r.Method != http.MethodGet {
+				http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+				return
+			}
+			f.fileGet(w, m[1])
+			return
+		}
+		http.Error(w, "not found", http.StatusNotFound)
+	})
 
 	mux.HandleFunc("/v1/vaults", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
@@ -795,6 +846,37 @@ func (f *fakeAPI) list(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(http.StatusOK)
 	_ = json.NewEncoder(w).Encode(out)
+}
+
+// --- agent version + file handlers ---
+
+func (f *fakeAPI) agentVersionsList(w http.ResponseWriter, agentID string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	versions := f.agentVersions[agentID]
+	out := struct {
+		Data    []map[string]any `json:"data"`
+		HasMore bool             `json:"has_more"`
+		FirstID string           `json:"first_id"`
+		LastID  string           `json:"last_id"`
+	}{Data: versions}
+	if out.Data == nil {
+		out.Data = []map[string]any{}
+	}
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(out)
+}
+
+func (f *fakeAPI) fileGet(w http.ResponseWriter, id string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	file, ok := f.files[id]
+	if !ok {
+		writeAPIErr(w, http.StatusNotFound, "not_found_error", "no such file")
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(file)
 }
 
 // --- vault handlers ---

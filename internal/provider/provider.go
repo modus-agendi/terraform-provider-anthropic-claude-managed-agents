@@ -112,7 +112,9 @@ func (p *claudeProvider) Resources(_ context.Context) []func() resource.Resource
 func (p *claudeProvider) DataSources(_ context.Context) []func() datasource.DataSource {
 	return []func() datasource.DataSource{
 		newAgentDataSource,
+		newAgentVersionDataSource,
 		newEnvironmentDataSource,
+		newFileDataSource,
 		newMemoryStoreDataSource,
 		newVaultDataSource,
 		newVaultCredentialDataSource,

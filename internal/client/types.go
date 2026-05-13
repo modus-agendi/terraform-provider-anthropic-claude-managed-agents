@@ -285,6 +285,36 @@ type VaultCredentialUpdateRequest struct {
 	Auth        map[string]any `json:"auth,omitempty"`
 }
 
+// AgentVersion is one entry in the agent's version history. Returned by
+// GET /v1/agents/{id}/versions. The provider exposes a data source that
+// looks up a specific version number by listing and filtering.
+type AgentVersion struct {
+	Type        string            `json:"type"`
+	AgentID     string            `json:"agent_id"`
+	Version     int               `json:"version"`
+	Name        string            `json:"name"`
+	Model       ModelConfig       `json:"model"`
+	System      *string           `json:"system"`
+	Description *string           `json:"description"`
+	Metadata    map[string]string `json:"metadata"`
+	CreatedAt   time.Time         `json:"created_at"`
+	UpdatedAt   time.Time         `json:"updated_at"`
+}
+
+// File is the read shape returned by GET /v1/files/{id}.
+//
+// Files are session-scoped artifacts. Only metadata is exposed by the
+// provider data source; the binary content endpoint is not modeled.
+type File struct {
+	ID        string    `json:"id"`
+	Type      string    `json:"type"`
+	Filename  string    `json:"filename"`
+	SizeBytes int64     `json:"size_bytes"`
+	MimeType  string    `json:"mime_type"`
+	ScopeID   string    `json:"scope_id"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
 // MemoryStoreUpdateRequest is the body for POST /v1/memory_stores/{id}.
 //
 // Name and Description use pointer / raw-message semantics matching agent
