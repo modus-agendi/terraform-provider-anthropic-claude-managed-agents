@@ -221,8 +221,6 @@ gotchas when someone has the branch checked out.
 
 ## Bias against …
 
-- **Coverage chasing.** If you can't write a test that asserts a real
-  behavior, the line stays red.
 - **Schema fields the API doesn't surface.** Don't add fake validation
   attributes hoping for niceness. Surface API errors as-is.
 - **Conditional logic in tests.** If you need an `if liveMode()` branch
