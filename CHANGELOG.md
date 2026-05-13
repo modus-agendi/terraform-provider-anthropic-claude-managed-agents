@@ -6,7 +6,30 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed (BREAKING)
+- Minimum Terraform raised to **1.11** (OpenTofu 1.8). The provider now uses
+  TF 1.11 write-only attributes for the four secret-bearing fields on
+  `claude-managed-agents_vault_credential` (`token`, `access_token`,
+  `refresh_token`, `client_secret`). Users on TF 1.8-1.10 should stay on
+  v0.1.x; upgrading without bumping the engine will fail at plan time.
+
 ### Added
+- Resource `claude-managed-agents_vault` for end-user-scoped credential
+  containers. Mutable `display_name` and `metadata`; destroy archives by
+  default and hard-deletes when `delete_on_destroy = true`. Archive
+  cascades through credentials server-side.
+- Data source `claude-managed-agents_vault`.
+- Resource `claude-managed-agents_vault_credential` with both auth types
+  (`static_bearer`, `mcp_oauth`). Secret fields are TF 1.11 write-only;
+  rotate by incrementing the matching `*_wo_version` integer. `auth.type`,
+  `auth.mcp_server_url`, `auth.refresh.token_endpoint`, and
+  `auth.refresh.client_id` are immutable (RequiresReplace).
+- Data source `claude-managed-agents_vault_credential` (secret fields are
+  never populated; the API does not return them).
+- Sweeper for `claude-managed-agents_vault` matching the `tf-acc-test-`
+  display-name prefix and the shared 1-hour age threshold. Vault archive
+  cascades through credentials, so no separate credential sweeper is
+  needed.
 - Resource `claude-managed-agents_memory_store` for managing persistent
   memory stores. Supports `name` and `description` (both mutable) plus a
   `delete_on_destroy` provider-side flag. Destroy archives the store by

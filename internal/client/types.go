@@ -156,6 +156,97 @@ type MemoryStoreCreateRequest struct {
 	Description *string `json:"description,omitempty"`
 }
 
+// Vault is the read shape returned by GET /v1/vaults/{id}.
+//
+// Vaults are workspace-scoped containers of credentials, typically used to
+// model one end-user. Both display_name and metadata are mutable.
+type Vault struct {
+	ID          string            `json:"id"`
+	Type        string            `json:"type"`
+	DisplayName string            `json:"display_name"`
+	Metadata    map[string]string `json:"metadata"`
+	CreatedAt   time.Time         `json:"created_at"`
+	UpdatedAt   time.Time         `json:"updated_at"`
+	ArchivedAt  *time.Time        `json:"archived_at"`
+}
+
+// VaultCreateRequest is the body for POST /v1/vaults.
+type VaultCreateRequest struct {
+	DisplayName string            `json:"display_name"`
+	Metadata    map[string]string `json:"metadata,omitempty"`
+}
+
+// VaultUpdateRequest is the body for POST /v1/vaults/{id}. nil DisplayName
+// means leave unchanged; Metadata uses the same key-merge semantics as agents
+// (send empty-string values to delete a key server-side).
+type VaultUpdateRequest struct {
+	DisplayName *string           `json:"display_name,omitempty"`
+	Metadata    map[string]string `json:"metadata,omitempty"`
+}
+
+// VaultCredential is the read shape returned by GET
+// /v1/vaults/{vault_id}/credentials/{credential_id}. Secret payloads are
+// never returned by the API; only metadata and non-secret config fields
+// (such as `auth.mcp_server_url`) appear on read.
+type VaultCredential struct {
+	ID          string              `json:"id"`
+	Type        string              `json:"type"`
+	VaultID     string              `json:"vault_id"`
+	DisplayName string              `json:"display_name"`
+	Auth        VaultCredentialAuth `json:"auth"`
+	CreatedAt   time.Time           `json:"created_at"`
+	UpdatedAt   time.Time           `json:"updated_at"`
+	ArchivedAt  *time.Time          `json:"archived_at"`
+}
+
+// VaultCredentialAuth is the union of the two `auth` shapes the API returns
+// on read. Secrets are never present; the type discriminator drives
+// interpretation.
+//
+// For `mcp_oauth`, the `expires_at` and the `refresh` block (sans secrets)
+// are returned. For `static_bearer`, only `mcp_server_url` is meaningful.
+type VaultCredentialAuth struct {
+	Type         string                      `json:"type"`
+	McpServerURL string                      `json:"mcp_server_url"`
+	ExpiresAt    *time.Time                  `json:"expires_at,omitempty"`
+	Refresh      *VaultCredentialAuthRefresh `json:"refresh,omitempty"`
+}
+
+// VaultCredentialAuthRefresh mirrors the read shape of the OAuth refresh
+// sub-object. The secret-bearing fields (`refresh_token`, `client_secret`)
+// are not present on read.
+type VaultCredentialAuthRefresh struct {
+	TokenEndpoint     string                                 `json:"token_endpoint"`
+	ClientID          string                                 `json:"client_id"`
+	Scope             string                                 `json:"scope,omitempty"`
+	TokenEndpointAuth VaultCredentialAuthRefreshEndpointAuth `json:"token_endpoint_auth"`
+}
+
+// VaultCredentialAuthRefreshEndpointAuth carries only `type` on read; the
+// `client_secret` is purged.
+type VaultCredentialAuthRefreshEndpointAuth struct {
+	Type string `json:"type"`
+}
+
+// VaultCredentialCreateRequest is the body for POST
+// /v1/vaults/{vault_id}/credentials. The Auth field is a free-form map
+// because the union shape varies by auth.type; callers build the map
+// directly to keep the client thin and avoid leaking secrets into typed
+// fields that might accidentally end up in logs.
+type VaultCredentialCreateRequest struct {
+	DisplayName string         `json:"display_name"`
+	Auth        map[string]any `json:"auth"`
+}
+
+// VaultCredentialUpdateRequest is the body for POST
+// /v1/vaults/{vault_id}/credentials/{credential_id}. Only the secret payload
+// and a few metadata fields are mutable; `mcp_server_url`,
+// `token_endpoint`, and `client_id` are locked.
+type VaultCredentialUpdateRequest struct {
+	DisplayName *string        `json:"display_name,omitempty"`
+	Auth        map[string]any `json:"auth,omitempty"`
+}
+
 // MemoryStoreUpdateRequest is the body for POST /v1/memory_stores/{id}.
 //
 // Name and Description use pointer / raw-message semantics matching agent

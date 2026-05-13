@@ -128,9 +128,9 @@ jobs:
       fail-fast: false
       matrix:
         terraform:
-          - "1.8.*"
-          - "1.9.*"
-          - "1.10.*"
+          - "1.11.*"
+          - "1.12.*"
+          - "latest"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -156,7 +156,7 @@ jobs:
             -timeout 30m \
             ./internal/provider/...
       - uses: codecov/codecov-action@v6
-        if: matrix.terraform == '1.10.*'
+        if: matrix.terraform == '1.11.*'
         with:
           files: ./coverage-acc.out
           flags: acceptance
@@ -180,6 +180,6 @@ jobs:
       # because HashiCorp's checksum-signing key has expired.
       - uses: hashicorp/setup-terraform@v4
         with:
-          terraform_version: "1.10.*"
+          terraform_version: "1.11.*"
           terraform_wrapper: false
       - run: make docscheck
