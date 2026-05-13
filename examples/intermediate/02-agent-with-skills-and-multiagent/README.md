@@ -12,8 +12,8 @@ delegates to it.
     defaults server-side to `latest`.
 - How to build a coordinator via `multiagent`:
   - `type = "coordinator"` is currently the only supported coordinator type.
-  - Members are either `{ type = "agent", id = "agent_*" }` (delegate) or
-    `{ type = "self" }` (self-invocation).
+  - Members are `{ type = "agent", id = "agent_*" }` references to worker
+    agents the coordinator delegates to.
 
 ## Prerequisites
 

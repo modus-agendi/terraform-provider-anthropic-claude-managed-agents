@@ -82,8 +82,7 @@ resource "claude-managed-agents_agent" "code_review" {
   ]
 }
 
-# A coordinator agent that delegates to the reviewer above and may also
-# invoke itself.
+# A coordinator agent that delegates to the reviewer above.
 resource "claude-managed-agents_agent" "tech_lead" {
   name  = "Tech Lead Coordinator"
   model = "claude-sonnet-4-6"
@@ -92,7 +91,6 @@ resource "claude-managed-agents_agent" "tech_lead" {
     type = "coordinator"
     agents = [
       { type = "agent", id = claude-managed-agents_agent.code_review.id },
-      { type = "self" },
     ]
   }
 }
