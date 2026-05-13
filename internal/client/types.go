@@ -15,10 +15,11 @@ type ModelConfig struct {
 
 // Agent is the read shape returned by GET /v1/agents/{id}.
 //
-// Nested config fields that the v0.1 provider does not yet expose as HCL
-// (tools, mcp_servers, skills, multiagent) are decoded into json.RawMessage
-// so the provider can round-trip them on update without losing user
-// configuration set via the API directly.
+// The nested config fields exposed as HCL in v0.2 (mcp_servers, skills,
+// multiagent) round-trip through typed structs. `Tools` is kept as
+// json.RawMessage for now — the provider preserves server-side tool config
+// (set via API directly) on update without exposing it in HCL. A follow-up
+// PR will model tools as first-class HCL.
 type Agent struct {
 	ID          string            `json:"id"`
 	Type        string            `json:"type"`
@@ -33,9 +34,44 @@ type Agent struct {
 	ArchivedAt  *time.Time        `json:"archived_at"`
 
 	Tools      json.RawMessage `json:"tools,omitempty"`
-	McpServers json.RawMessage `json:"mcp_servers,omitempty"`
-	Skills     json.RawMessage `json:"skills,omitempty"`
-	Multiagent json.RawMessage `json:"multiagent,omitempty"`
+	McpServers []McpServer     `json:"mcp_servers,omitempty"`
+	Skills     []Skill         `json:"skills,omitempty"`
+	Multiagent *Multiagent     `json:"multiagent,omitempty"`
+}
+
+// McpServer is one entry of the agent's `mcp_servers` list.
+//
+// The only documented `type` value is "url"; other variants would need new
+// fields here.
+type McpServer struct {
+	Type string `json:"type"`
+	Name string `json:"name"`
+	URL  string `json:"url"`
+}
+
+// Skill is one entry of the agent's `skills` list. Discriminated on `type`:
+//   - "anthropic" — pre-built skills (`skill_id` is a short name like "xlsx")
+//   - "custom"    — user-uploaded skills (`skill_id` is `skill_*` and
+//     `version` is optional, defaulting to "latest")
+type Skill struct {
+	Type    string `json:"type"`
+	SkillID string `json:"skill_id"`
+	Version string `json:"version,omitempty"`
+}
+
+// Multiagent is the agent's optional coordinator config.
+type Multiagent struct {
+	Type   string             `json:"type"`
+	Agents []MultiagentMember `json:"agents,omitempty"`
+}
+
+// MultiagentMember is one entry of the coordinator's `agents` list.
+// Discriminated on `type`:
+//   - "agent" — references another agent by `id`
+//   - "self"  — the coordinator may invoke itself; no `id`
+type MultiagentMember struct {
+	Type string `json:"type"`
+	ID   string `json:"id,omitempty"`
 }
 
 // AgentCreateRequest is the body for POST /v1/agents.
@@ -50,9 +86,9 @@ type AgentCreateRequest struct {
 	Metadata    map[string]string `json:"metadata,omitempty"`
 
 	Tools      json.RawMessage `json:"tools,omitempty"`
-	McpServers json.RawMessage `json:"mcp_servers,omitempty"`
-	Skills     json.RawMessage `json:"skills,omitempty"`
-	Multiagent json.RawMessage `json:"multiagent,omitempty"`
+	McpServers []McpServer     `json:"mcp_servers,omitempty"`
+	Skills     []Skill         `json:"skills,omitempty"`
+	Multiagent *Multiagent     `json:"multiagent,omitempty"`
 }
 
 // AgentUpdateRequest is the body for POST /v1/agents/{id}.
@@ -69,10 +105,12 @@ type AgentUpdateRequest struct {
 	Description json.RawMessage   `json:"description,omitempty"`
 	Metadata    map[string]string `json:"metadata,omitempty"`
 
+	// Pointer slices distinguish "leave unchanged" (nil) from "replace
+	// with this exact list" (non-nil — including an explicit empty list).
 	Tools      json.RawMessage `json:"tools,omitempty"`
-	McpServers json.RawMessage `json:"mcp_servers,omitempty"`
-	Skills     json.RawMessage `json:"skills,omitempty"`
-	Multiagent json.RawMessage `json:"multiagent,omitempty"`
+	McpServers *[]McpServer    `json:"mcp_servers,omitempty"`
+	Skills     *[]Skill        `json:"skills,omitempty"`
+	Multiagent *Multiagent     `json:"multiagent,omitempty"`
 }
 
 // ListResponse is the cursor pagination envelope shared by all list endpoints.

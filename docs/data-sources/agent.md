@@ -41,9 +41,49 @@ output "existing_agent_version" {
 - `archived_at` (String) ISO 8601 archive timestamp, or null if active.
 - `created_at` (String) ISO 8601 creation timestamp.
 - `description` (String) Description, or null.
+- `mcp_servers` (Attributes List) MCP servers configured on the agent. (see [below for nested schema](#nestedatt--mcp_servers))
 - `metadata` (Map of String) Metadata map.
 - `model` (String) Model identifier.
+- `multiagent` (Attributes) Multi-agent coordinator config, if any. (see [below for nested schema](#nestedatt--multiagent))
 - `name` (String) Agent name.
+- `skills` (Attributes List) Skills configured on the agent. (see [below for nested schema](#nestedatt--skills))
 - `system` (String) System prompt, or null.
 - `updated_at` (String) ISO 8601 last-modified timestamp.
 - `version` (Number) Server-managed version number.
+
+<a id="nestedatt--mcp_servers"></a>
+### Nested Schema for `mcp_servers`
+
+Read-Only:
+
+- `name` (String)
+- `type` (String)
+- `url` (String)
+
+
+<a id="nestedatt--multiagent"></a>
+### Nested Schema for `multiagent`
+
+Read-Only:
+
+- `agents` (Attributes List) (see [below for nested schema](#nestedatt--multiagent--agents))
+- `type` (String)
+
+<a id="nestedatt--multiagent--agents"></a>
+### Nested Schema for `multiagent.agents`
+
+Read-Only:
+
+- `id` (String)
+- `type` (String)
+
+
+
+<a id="nestedatt--skills"></a>
+### Nested Schema for `skills`
+
+Read-Only:
+
+- `skill_id` (String)
+- `type` (String)
+- `version` (String)

@@ -91,6 +91,10 @@ type fakeAgent struct {
 	CreatedAt   string            `json:"created_at"`
 	UpdatedAt   string            `json:"updated_at"`
 	ArchivedAt  *string           `json:"archived_at"`
+
+	McpServers []map[string]any `json:"mcp_servers,omitempty"`
+	Skills     []map[string]any `json:"skills,omitempty"`
+	Multiagent map[string]any   `json:"multiagent,omitempty"`
 }
 
 type fakeEnvironment struct {
@@ -625,6 +629,9 @@ func (f *fakeAPI) create(w http.ResponseWriter, r *http.Request) {
 		System      *string           `json:"system"`
 		Description *string           `json:"description"`
 		Metadata    map[string]string `json:"metadata"`
+		McpServers  []map[string]any  `json:"mcp_servers"`
+		Skills      []map[string]any  `json:"skills"`
+		Multiagent  map[string]any    `json:"multiagent"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeAPIErr(w, http.StatusBadRequest, "invalid_request_error", err.Error())
@@ -656,6 +663,9 @@ func (f *fakeAPI) create(w http.ResponseWriter, r *http.Request) {
 		Version:     1,
 		CreatedAt:   now,
 		UpdatedAt:   now,
+		McpServers:  body.McpServers,
+		Skills:      body.Skills,
+		Multiagent:  body.Multiagent,
 	}
 	if agent.Metadata == nil {
 		agent.Metadata = map[string]string{}
@@ -688,6 +698,9 @@ func (f *fakeAPI) update(w http.ResponseWriter, r *http.Request, id string) {
 		System      json.RawMessage   `json:"system"`
 		Description json.RawMessage   `json:"description"`
 		Metadata    map[string]string `json:"metadata"`
+		McpServers  *[]map[string]any `json:"mcp_servers"`
+		Skills      *[]map[string]any `json:"skills"`
+		Multiagent  *map[string]any   `json:"multiagent"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeAPIErr(w, http.StatusBadRequest, "invalid_request_error", err.Error())
@@ -730,6 +743,15 @@ func (f *fakeAPI) update(w http.ResponseWriter, r *http.Request, id string) {
 		} else {
 			a.Metadata[k] = v
 		}
+	}
+	if body.McpServers != nil {
+		a.McpServers = *body.McpServers
+	}
+	if body.Skills != nil {
+		a.Skills = *body.Skills
+	}
+	if body.Multiagent != nil {
+		a.Multiagent = *body.Multiagent
 	}
 
 	a.Version++

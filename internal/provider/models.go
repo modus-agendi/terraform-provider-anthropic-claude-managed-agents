@@ -5,7 +5,7 @@ import (
 )
 
 // agentModel is the Terraform schema representation of a Claude Managed Agents
-// agent. Mirrors the fields the v0.1 provider exposes in HCL.
+// agent.
 type agentModel struct {
 	ID          types.String `tfsdk:"id"`
 	Name        types.String `tfsdk:"name"`
@@ -17,6 +17,10 @@ type agentModel struct {
 	CreatedAt   types.String `tfsdk:"created_at"`
 	UpdatedAt   types.String `tfsdk:"updated_at"`
 	ArchivedAt  types.String `tfsdk:"archived_at"`
+
+	McpServers types.List   `tfsdk:"mcp_servers"`
+	Skills     types.List   `tfsdk:"skills"`
+	Multiagent types.Object `tfsdk:"multiagent"`
 }
 
 // providerModel is the Terraform schema representation of the provider block.

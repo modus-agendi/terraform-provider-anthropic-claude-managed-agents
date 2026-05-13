@@ -8,6 +8,29 @@ resource "claude-managed-agents_agent" "coding_assistant" {
     team        = "platform"
     environment = "prod"
   }
+
+  mcp_servers = [
+    { type = "url", name = "github", url = "https://mcp.example.com/github" },
+  ]
+
+  skills = [
+    { type = "anthropic", skill_id = "xlsx" },
+    { type = "custom", skill_id = "skill_abc123", version = "latest" },
+  ]
+}
+
+# Coordinator that delegates to the assistant above.
+resource "claude-managed-agents_agent" "lead" {
+  name  = "Engineering Lead"
+  model = "claude-opus-4-7"
+
+  multiagent = {
+    type = "coordinator"
+    agents = [
+      { type = "agent", id = claude-managed-agents_agent.coding_assistant.id },
+      { type = "self" },
+    ]
+  }
 }
 
 output "agent_id" {

@@ -48,6 +48,44 @@ func (d *agentDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, 
 			"created_at":  schema.StringAttribute{Computed: true, MarkdownDescription: "ISO 8601 creation timestamp."},
 			"updated_at":  schema.StringAttribute{Computed: true, MarkdownDescription: "ISO 8601 last-modified timestamp."},
 			"archived_at": schema.StringAttribute{Computed: true, MarkdownDescription: "ISO 8601 archive timestamp, or null if active."},
+			"mcp_servers": schema.ListNestedAttribute{
+				Computed:            true,
+				MarkdownDescription: "MCP servers configured on the agent.",
+				NestedObject: schema.NestedAttributeObject{
+					Attributes: map[string]schema.Attribute{
+						"type": schema.StringAttribute{Computed: true},
+						"name": schema.StringAttribute{Computed: true},
+						"url":  schema.StringAttribute{Computed: true},
+					},
+				},
+			},
+			"skills": schema.ListNestedAttribute{
+				Computed:            true,
+				MarkdownDescription: "Skills configured on the agent.",
+				NestedObject: schema.NestedAttributeObject{
+					Attributes: map[string]schema.Attribute{
+						"type":     schema.StringAttribute{Computed: true},
+						"skill_id": schema.StringAttribute{Computed: true},
+						"version":  schema.StringAttribute{Computed: true},
+					},
+				},
+			},
+			"multiagent": schema.SingleNestedAttribute{
+				Computed:            true,
+				MarkdownDescription: "Multi-agent coordinator config, if any.",
+				Attributes: map[string]schema.Attribute{
+					"type": schema.StringAttribute{Computed: true},
+					"agents": schema.ListNestedAttribute{
+						Computed: true,
+						NestedObject: schema.NestedAttributeObject{
+							Attributes: map[string]schema.Attribute{
+								"type": schema.StringAttribute{Computed: true},
+								"id":   schema.StringAttribute{Computed: true},
+							},
+						},
+					},
+				},
+			},
 		},
 	}
 }
