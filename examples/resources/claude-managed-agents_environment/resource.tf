@@ -1,12 +1,25 @@
-# Sandbox environment with unrestricted networking and a pip preinstall list.
-resource "claude-managed-agents_environment" "python_dev" {
-  name = "python-dev"
+terraform {
+  required_providers {
+    claude-managed-agents = {
+      source  = "andasv/claude-managed-agents"
+      version = "~> 0.2"
+    }
+  }
+}
+
+provider "claude-managed-agents" {}
+
+# Unrestricted networking with a pip preinstall list. Suitable for
+# exploratory data work where any outbound host is fair game.
+# Environments are immutable: every attribute is RequiresReplace.
+resource "claude-managed-agents_environment" "data_science" {
+  name = "data-science-sandbox"
 
   config = {
     type = "cloud"
 
     packages = {
-      pip = ["pandas==2.2.0", "numpy==2.0.0"]
+      pip = ["pandas==2.2.0", "numpy==2.0.0", "scikit-learn==1.4.0"]
     }
 
     networking = {
@@ -15,23 +28,24 @@ resource "claude-managed-agents_environment" "python_dev" {
   }
 }
 
-# Sandbox environment with limited networking. The agent may only reach the
-# two allowlisted hosts. Package-manager installs at runtime are blocked.
-resource "claude-managed-agents_environment" "locked_down" {
-  name = "locked-down"
+# Locked-down environment: the agent may only reach explicit hosts and may
+# not call MCP servers or run package-manager installs at session runtime.
+# Use this for agents that touch production data.
+resource "claude-managed-agents_environment" "production" {
+  name = "production-locked-down"
 
   config = {
     type = "cloud"
 
     networking = {
       type                   = "limited"
-      allowed_hosts          = ["api.example.com", "pypi.org"]
+      allowed_hosts          = ["api.example.com", "internal.example.com"]
       allow_mcp_servers      = false
       allow_package_managers = false
     }
   }
 }
 
-output "python_env_id" {
-  value = claude-managed-agents_environment.python_dev.id
+output "data_science_env_id" {
+  value = claude-managed-agents_environment.data_science.id
 }

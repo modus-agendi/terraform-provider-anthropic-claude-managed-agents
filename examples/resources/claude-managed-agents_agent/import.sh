@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Import an existing Claude Managed Agents agent by its server-assigned id.
-# The id is the `agent_*` string returned by the API on create.
+# Import an existing agent by its `agent_*` id (returned by the API on create).
+# Replace the example id below with your real one.
 
-terraform import claude-managed-agents_agent.coding_assistant agent_01HqR2k7vXbZ9mNpL3wYcT8f
+terraform import claude-managed-agents_agent.code_review agent_01HqR2k7vXbZ9mNpL3wYcT8f

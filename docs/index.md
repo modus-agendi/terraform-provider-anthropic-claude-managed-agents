@@ -13,18 +13,18 @@ Terraform provider for Anthropic Claude Managed Agents (community, unofficial).
 
 ```terraform
 terraform {
-  required_version = ">= 1.8"
+  required_version = ">= 1.11"
 
   required_providers {
     claude-managed-agents = {
       source  = "andasv/claude-managed-agents"
-      version = "~> 0.1"
+      version = "~> 0.2"
     }
   }
 }
 
 # The provider reads ANTHROPIC_API_KEY from the environment by default.
-# Override via the api_key argument if you must, but prefer the env var.
+# Prefer the env var over committing keys to HCL — required.
 provider "claude-managed-agents" {
   # api_key     = var.anthropic_api_key
   # base_url    = "https://api.anthropic.com"

@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
-# Import an existing vault credential. The import id is the composite
-# "vault_id:credential_id" — both `vlt_*` and `cred_*` strings from the API.
+# Import a vault credential using a composite "vault_id:credential_id" id —
+# both ids are `vlt_*` and `cred_*` strings returned by the API.
 #
-# Secrets are not part of the API response, so the WriteOnly attributes
-# (token, access_token, refresh_token, client_secret) start as null. Set the
-# matching *_wo_version after import to push your secret values to the API.
+# Secrets are never returned by the API, so the WriteOnly attributes
+# (token, access_token, refresh_token, client_secret) start as null after
+# import. Bump the matching *_wo_version after import to re-send the secret
+# value from your variable on the next apply.
 
-terraform import claude-managed-agents_vault_credential.linear vlt_01HqR2k7vXbZ9mNpL3wYcT8f:cred_01HABCDEF...
+terraform import claude-managed-agents_vault_credential.linear vlt_01HqR2k7vXbZ9mNpL3wYcT8f:cred_01HFEDCBA9876543210ABCD

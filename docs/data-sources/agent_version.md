@@ -13,17 +13,34 @@ Look up a specific historical version of an agent. The upstream API only exposes
 ## Example Usage
 
 ```terraform
-# Look up a specific historical version of an agent. Useful for comparing
-# the live agent to a known-good baseline, or feeding the prior config back
-# into terraform when manually rolling back.
+terraform {
+  required_providers {
+    claude-managed-agents = {
+      source  = "andasv/claude-managed-agents"
+      version = "~> 0.2"
+    }
+  }
+}
 
-data "claude-managed-agents_agent_version" "v3" {
-  agent_id = claude-managed-agents_agent.coding_assistant.id
+provider "claude-managed-agents" {}
+
+# Look up a specific historical revision of an agent. The upstream API
+# only exposes a list endpoint for versions, so the data source pages
+# through history and returns the entry whose `version` matches.
+#
+# Use this to compare the live agent against a known-good baseline, or to
+# feed a prior system prompt back into Terraform during a manual rollback.
+data "claude-managed-agents_agent_version" "baseline" {
+  agent_id = "agent_01HqR2k7vXbZ9mNpL3wYcT8f"
   version  = 3
 }
 
-output "v3_system_prompt" {
-  value = data.claude-managed-agents_agent_version.v3.system
+output "baseline_system_prompt" {
+  value = data.claude-managed-agents_agent_version.baseline.system
+}
+
+output "baseline_model" {
+  value = data.claude-managed-agents_agent_version.baseline.model
 }
 ```
 

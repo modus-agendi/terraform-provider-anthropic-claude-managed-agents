@@ -1,0 +1,7 @@
+# Copy this file to terraform.tfvars and fill in real values.
+# terraform.tfvars is gitignored by convention; never commit secrets.
+
+linear_token        = "lin_api_REPLACE_ME"
+slack_access_token  = "xoxb-REPLACE_ME"
+slack_refresh_token = "xoxe-1-REPLACE_ME"
+slack_client_secret = "REPLACE_ME"
