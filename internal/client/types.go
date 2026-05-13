@@ -82,3 +82,55 @@ type ListResponse[T any] struct {
 	FirstID string `json:"first_id"`
 	LastID  string `json:"last_id"`
 }
+
+// Environment is the read shape returned by GET /v1/environments/{id}.
+//
+// Environments are immutable post-creation upstream — there is no update
+// endpoint. Treat every field as ForceNew in the Terraform resource.
+type Environment struct {
+	ID         string      `json:"id"`
+	Type       string      `json:"type"`
+	Name       string      `json:"name"`
+	Config     CloudConfig `json:"config"`
+	CreatedAt  time.Time   `json:"created_at"`
+	UpdatedAt  time.Time   `json:"updated_at"`
+	ArchivedAt *time.Time  `json:"archived_at"`
+}
+
+// CloudConfig is the only documented value of `config.type`. Future config
+// types would need new variants here.
+type CloudConfig struct {
+	Type       string     `json:"type"` // currently only "cloud"
+	Packages   *Packages  `json:"packages,omitempty"`
+	Networking Networking `json:"networking"`
+}
+
+// Packages is the per-package-manager install list. All fields optional.
+type Packages struct {
+	Apt   []string `json:"apt,omitempty"`
+	Cargo []string `json:"cargo,omitempty"`
+	Gem   []string `json:"gem,omitempty"`
+	Go    []string `json:"go,omitempty"`
+	Npm   []string `json:"npm,omitempty"`
+	Pip   []string `json:"pip,omitempty"`
+}
+
+// Networking is the discriminated-union outbound policy.
+//
+// Type values:
+//   - "unrestricted" — agent can reach any host. AllowedHosts and the two
+//     Allow* booleans must be empty/nil.
+//   - "limited"      — agent restricted to AllowedHosts. The two Allow*
+//     booleans gate MCP servers and package managers respectively.
+type Networking struct {
+	Type                 string   `json:"type"`
+	AllowedHosts         []string `json:"allowed_hosts,omitempty"`
+	AllowMcpServers      *bool    `json:"allow_mcp_servers,omitempty"`
+	AllowPackageManagers *bool    `json:"allow_package_managers,omitempty"`
+}
+
+// EnvironmentCreateRequest is the body for POST /v1/environments.
+type EnvironmentCreateRequest struct {
+	Name   string      `json:"name"`
+	Config CloudConfig `json:"config"`
+}

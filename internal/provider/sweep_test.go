@@ -35,6 +35,10 @@ func init() {
 		Name: "claude-managed-agents_agent",
 		F:    sweepAgents,
 	})
+	resource.AddTestSweepers("claude-managed-agents_environment", &resource.Sweeper{
+		Name: "claude-managed-agents_environment",
+		F:    sweepEnvironments,
+	})
 }
 
 // sweepAgents archives any agent whose name starts with `tf-acc-test-` and
@@ -89,5 +93,72 @@ func sweepAgents(_ string) error {
 	}
 
 	log.Printf("[INFO] sweeper finished: archived=%d skipped_young=%d", swept, skippedYoung)
+	return nil
+}
+
+// sweepEnvironments deletes any environment whose name starts with
+// tf-acc-test- and was created more than sweepAgeThreshold ago. Delete is
+// tried first; on 409 we fall back to archive so live tests don't get stuck
+// holding the slot.
+func sweepEnvironments(_ string) error {
+	apiKey := os.Getenv("ANTHROPIC_API_KEY")
+	if apiKey == "" {
+		log.Println("[INFO] ANTHROPIC_API_KEY not set; environment sweeper is a no-op")
+		return nil
+	}
+
+	c, err := client.New(client.Config{
+		APIKey:    apiKey,
+		UserAgent: "terraform-provider-claude-managed-agents/sweeper",
+	})
+	if err != nil {
+		return fmt.Errorf("env sweeper: build client: %w", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	var (
+		cursor       string
+		deleted      int
+		archived     int
+		skippedYoung int
+	)
+	for {
+		page, err := c.ListEnvironments(ctx, client.ListEnvironmentsParams{Limit: 100, AfterID: cursor, IncludeArchived: true})
+		if err != nil {
+			return fmt.Errorf("env sweeper: list: %w", err)
+		}
+		for _, e := range page.Data {
+			if !strings.HasPrefix(e.Name, testResourcePrefix) {
+				continue
+			}
+			if time.Since(e.CreatedAt) < sweepAgeThreshold {
+				skippedYoung++
+				continue
+			}
+			if e.ArchivedAt != nil {
+				continue
+			}
+			if err := c.DeleteEnvironment(ctx, e.ID); err == nil {
+				log.Printf("[INFO] swept (deleted) environment %s (%s)", e.ID, e.Name)
+				deleted++
+				continue
+			} else if !client.IsConflict(err) && !client.IsNotFound(err) {
+				return fmt.Errorf("env sweeper: delete %s: %w", e.ID, err)
+			}
+			if err := c.ArchiveEnvironment(ctx, e.ID); err != nil && !client.IsNotFound(err) {
+				return fmt.Errorf("env sweeper: archive %s: %w", e.ID, err)
+			}
+			log.Printf("[INFO] swept (archived) environment %s (%s)", e.ID, e.Name)
+			archived++
+		}
+		if !page.HasMore {
+			break
+		}
+		cursor = page.LastID
+	}
+
+	log.Printf("[INFO] env sweeper finished: deleted=%d archived=%d skipped_young=%d", deleted, archived, skippedYoung)
 	return nil
 }

@@ -28,7 +28,8 @@ This provider lets you put that configuration under Terraform so you can:
 |---|---|---|
 | Resource `claude-managed-agents_agent` (flat fields) | yes | — |
 | Data source `claude-managed-agents_agent` | yes | — |
-| Resource `claude-managed-agents_environment` | — | v0.2 |
+| Resource `claude-managed-agents_environment` | yes (unreleased) | — |
+| Data source `claude-managed-agents_environment` | yes (unreleased) | — |
 | Resource `claude-managed-agents_vault` | — | v0.2 |
 | Resource `claude-managed-agents_vault_credential` | — | v0.2 |
 | Resource `claude-managed-agents_memory_store` | — | v0.3 |
