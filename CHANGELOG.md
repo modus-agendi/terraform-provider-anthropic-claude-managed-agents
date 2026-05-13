@@ -15,6 +15,25 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   error on apply. The L2 fake API (`testutil_test.go`) mirrors the same
   normalization so future regressions are caught without an L3 run.
 
+### Testing
+- Added `nodrift_resource_test.go` with one `TestAcc<Name>Resource_noDrift`
+  per resource (agent, environment, vault, vault_credential,
+  memory_store). Each sweep applies an exhaustive config exercising every
+  nullable / list / map / nested block, then re-applies the same config
+  with `plancheck.ExpectEmptyPlan` to assert no drift after server-side
+  normalization. The multiagent, metadata-merge, environment-flags, and
+  empty-string-description divergences caught during the v0.2 live smoke
+  run would each have surfaced here in PR CI.
+
+### CI
+- `live.yml` now runs weekly (Mondays 03:00 UTC) in addition to
+  `workflow_dispatch`. Picks up drift between fake and real API on a
+  predictable cadence without burning daily API budget.
+- `release.yml` now has a `live` job that runs L3 against the real API
+  before `goreleaser` publishes. Releases on `v*` tags only ship if live
+  tests pass. Removes the failure mode where a known live-API
+  divergence reached the registry.
+
 ### Fixed (live-API divergences caught by full smoke run)
 - **Environment**: provider no longer sends `allow_mcp_servers` /
   `allow_package_managers` when `networking.type = "unrestricted"`. Real
