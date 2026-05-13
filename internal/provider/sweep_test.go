@@ -39,6 +39,10 @@ func init() {
 		Name: "claude-managed-agents_environment",
 		F:    sweepEnvironments,
 	})
+	resource.AddTestSweepers("claude-managed-agents_memory_store", &resource.Sweeper{
+		Name: "claude-managed-agents_memory_store",
+		F:    sweepMemoryStores,
+	})
 }
 
 // sweepAgents archives any agent whose name starts with `tf-acc-test-` and
@@ -160,5 +164,60 @@ func sweepEnvironments(_ string) error {
 	}
 
 	log.Printf("[INFO] env sweeper finished: deleted=%d archived=%d skipped_young=%d", deleted, archived, skippedYoung)
+	return nil
+}
+
+// sweepMemoryStores archives any memory store whose name starts with
+// tf-acc-test- and was created more than sweepAgeThreshold ago. Archive
+// is preferred over delete to preserve audit trails for shared accounts.
+func sweepMemoryStores(_ string) error {
+	apiKey := os.Getenv("ANTHROPIC_API_KEY")
+	if apiKey == "" {
+		log.Println("[INFO] ANTHROPIC_API_KEY not set; memory store sweeper is a no-op")
+		return nil
+	}
+
+	c, err := client.New(client.Config{
+		APIKey:    apiKey,
+		UserAgent: "terraform-provider-claude-managed-agents/sweeper",
+	})
+	if err != nil {
+		return fmt.Errorf("memory store sweeper: build client: %w", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	var (
+		cursor       string
+		swept        int
+		skippedYoung int
+	)
+	for {
+		page, err := c.ListMemoryStores(ctx, client.ListMemoryStoresParams{Limit: 100, AfterID: cursor})
+		if err != nil {
+			return fmt.Errorf("memory store sweeper: list: %w", err)
+		}
+		for _, s := range page.Data {
+			if !strings.HasPrefix(s.Name, testResourcePrefix) {
+				continue
+			}
+			if time.Since(s.CreatedAt) < sweepAgeThreshold {
+				skippedYoung++
+				continue
+			}
+			if err := c.ArchiveMemoryStore(ctx, s.ID); err != nil && !client.IsNotFound(err) {
+				return fmt.Errorf("memory store sweeper: archive %s: %w", s.ID, err)
+			}
+			log.Printf("[INFO] swept memory_store %s (%s)", s.ID, s.Name)
+			swept++
+		}
+		if !page.HasMore {
+			break
+		}
+		cursor = page.LastID
+	}
+
+	log.Printf("[INFO] memory store sweeper finished: archived=%d skipped_young=%d", swept, skippedYoung)
 	return nil
 }

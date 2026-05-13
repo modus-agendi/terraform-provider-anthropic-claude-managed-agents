@@ -7,6 +7,14 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- Resource `claude-managed-agents_memory_store` for managing persistent
+  memory stores. Supports `name` and `description` (both mutable) plus a
+  `delete_on_destroy` provider-side flag. Destroy archives the store by
+  default; setting `delete_on_destroy = true` hard-deletes the store and
+  cascades through every memory and memory version.
+- Data source `claude-managed-agents_memory_store`.
+- Sweeper for `claude-managed-agents_memory_store` matching the
+  `tf-acc-test-` prefix and the shared 1-hour age threshold.
 - Resource `claude-managed-agents_environment` for managing sandbox
   environments (cloud config, package preinstall lists, and
   unrestricted/limited networking policies). All attributes require

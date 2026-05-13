@@ -37,9 +37,21 @@ type fakeAPI struct {
 	mu             sync.Mutex
 	agents         map[string]*fakeAgent
 	envs           map[string]*fakeEnvironment
-	envBlockDelete map[string]bool // ids for which DELETE should 409
+	envBlockDelete map[string]bool // ids for which env DELETE should 409
+	stores         map[string]*fakeMemoryStore
 	counter        int
 	envCounter     int
+	storeCounter   int
+}
+
+type fakeMemoryStore struct {
+	ID          string  `json:"id"`
+	Type        string  `json:"type"`
+	Name        string  `json:"name"`
+	Description *string `json:"description"`
+	CreatedAt   string  `json:"created_at"`
+	UpdatedAt   string  `json:"updated_at"`
+	ArchivedAt  *string `json:"archived_at"`
 }
 
 type fakeAgent struct {
@@ -71,7 +83,16 @@ func newFakeAPI() *fakeAPI {
 		agents:         map[string]*fakeAgent{},
 		envs:           map[string]*fakeEnvironment{},
 		envBlockDelete: map[string]bool{},
+		stores:         map[string]*fakeMemoryStore{},
 	}
+}
+
+// DeleteAllStores wipes the memory store map. Use to simulate an
+// out-of-band deletion before a Read step.
+func (f *fakeAPI) DeleteAllStores() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.stores = map[string]*fakeMemoryStore{}
 }
 
 // BlockEnvDelete makes DELETE /v1/environments/{id} return 409 on the next
@@ -188,6 +209,45 @@ func (f *fakeAPI) handler() http.Handler {
 	envArchiveRe := regexp.MustCompile(`^/v1/environments/([^/]+)/archive$`)
 	envItemRe := regexp.MustCompile(`^/v1/environments/([^/]+)$`)
 
+	mux.HandleFunc("/v1/memory_stores", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodPost:
+			f.storeCreate(w, r)
+		case http.MethodGet:
+			f.storeList(w, r)
+		default:
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+
+	storeArchiveRe := regexp.MustCompile(`^/v1/memory_stores/([^/]+)/archive$`)
+	storeItemRe := regexp.MustCompile(`^/v1/memory_stores/([^/]+)$`)
+
+	mux.HandleFunc("/v1/memory_stores/", func(w http.ResponseWriter, r *http.Request) {
+		if m := storeArchiveRe.FindStringSubmatch(r.URL.Path); m != nil {
+			if r.Method != http.MethodPost {
+				http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+				return
+			}
+			f.storeArchive(w, m[1])
+			return
+		}
+		if m := storeItemRe.FindStringSubmatch(r.URL.Path); m != nil {
+			switch r.Method {
+			case http.MethodGet:
+				f.storeGet(w, m[1])
+			case http.MethodPost:
+				f.storeUpdate(w, r, m[1])
+			case http.MethodDelete:
+				f.storeDelete(w, m[1])
+			default:
+				http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			}
+			return
+		}
+		http.Error(w, "not found", http.StatusNotFound)
+	})
+
 	mux.HandleFunc("/v1/environments/", func(w http.ResponseWriter, r *http.Request) {
 		if m := envArchiveRe.FindStringSubmatch(r.URL.Path); m != nil {
 			if r.Method != http.MethodPost {
@@ -299,6 +359,133 @@ func (f *fakeAPI) envDelete(w http.ResponseWriter, id string) {
 	delete(f.envs, id)
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte(`{}`))
+}
+
+func (f *fakeAPI) storeCreate(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Name        string  `json:"name"`
+		Description *string `json:"description"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeAPIErr(w, http.StatusBadRequest, "invalid_request_error", err.Error())
+		return
+	}
+	if body.Name == "" {
+		writeAPIErr(w, http.StatusBadRequest, "invalid_request_error", "name is required")
+		return
+	}
+
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.storeCounter++
+	now := time.Now().UTC().Format(time.RFC3339)
+	id := fmt.Sprintf("memstore_FAKE%04d", f.storeCounter)
+	store := &fakeMemoryStore{
+		ID:          id,
+		Type:        "memory_store",
+		Name:        body.Name,
+		Description: body.Description,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+	f.stores[id] = store
+	w.Header().Set("request-id", "req_"+id)
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(store)
+}
+
+func (f *fakeAPI) storeGet(w http.ResponseWriter, id string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	s, ok := f.stores[id]
+	if !ok {
+		writeAPIErr(w, http.StatusNotFound, "not_found_error", "no such memory_store")
+		return
+	}
+	w.Header().Set("request-id", "req_"+id)
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(s)
+}
+
+func (f *fakeAPI) storeUpdate(w http.ResponseWriter, r *http.Request, id string) {
+	var body struct {
+		Name        *string         `json:"name"`
+		Description json.RawMessage `json:"description"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeAPIErr(w, http.StatusBadRequest, "invalid_request_error", err.Error())
+		return
+	}
+
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	s, ok := f.stores[id]
+	if !ok {
+		writeAPIErr(w, http.StatusNotFound, "not_found_error", "no such memory_store")
+		return
+	}
+	if s.ArchivedAt != nil {
+		writeAPIErr(w, http.StatusConflict, "conflict_error", "memory_store is archived")
+		return
+	}
+	if body.Name != nil {
+		s.Name = *body.Name
+	}
+	if body.Description != nil {
+		s.Description = decodeNullableString(body.Description)
+	}
+	s.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
+
+	w.Header().Set("request-id", "req_"+id)
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(s)
+}
+
+func (f *fakeAPI) storeArchive(w http.ResponseWriter, id string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	s, ok := f.stores[id]
+	if !ok {
+		writeAPIErr(w, http.StatusNotFound, "not_found_error", "no such memory_store")
+		return
+	}
+	now := time.Now().UTC().Format(time.RFC3339)
+	s.ArchivedAt = &now
+	w.Header().Set("request-id", "req_"+id)
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(s)
+}
+
+func (f *fakeAPI) storeDelete(w http.ResponseWriter, id string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if _, ok := f.stores[id]; !ok {
+		writeAPIErr(w, http.StatusNotFound, "not_found_error", "no such memory_store")
+		return
+	}
+	delete(f.stores, id)
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(`{}`))
+}
+
+func (f *fakeAPI) storeList(w http.ResponseWriter, r *http.Request) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	includeArchived := r.URL.Query().Get("include_archived") == "true"
+	out := struct {
+		Data    []*fakeMemoryStore `json:"data"`
+		HasMore bool               `json:"has_more"`
+		FirstID string             `json:"first_id"`
+		LastID  string             `json:"last_id"`
+	}{Data: []*fakeMemoryStore{}}
+	for _, s := range f.stores {
+		if s.ArchivedAt != nil && !includeArchived {
+			continue
+		}
+		out.Data = append(out.Data, s)
+	}
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(out)
 }
 
 func (f *fakeAPI) envList(w http.ResponseWriter, r *http.Request) {

@@ -134,3 +134,34 @@ type EnvironmentCreateRequest struct {
 	Name   string      `json:"name"`
 	Config CloudConfig `json:"config"`
 }
+
+// MemoryStore is the read shape returned by GET /v1/memory_stores/{id}.
+//
+// Memory stores have a `name` and a `description` that are mutable post
+// create. The description is surfaced in the agent's system prompt, so
+// changing it changes how the agent talks about the store.
+type MemoryStore struct {
+	ID          string     `json:"id"`
+	Type        string     `json:"type"`
+	Name        string     `json:"name"`
+	Description *string    `json:"description"`
+	CreatedAt   time.Time  `json:"created_at"`
+	UpdatedAt   time.Time  `json:"updated_at"`
+	ArchivedAt  *time.Time `json:"archived_at"`
+}
+
+// MemoryStoreCreateRequest is the body for POST /v1/memory_stores.
+type MemoryStoreCreateRequest struct {
+	Name        string  `json:"name"`
+	Description *string `json:"description,omitempty"`
+}
+
+// MemoryStoreUpdateRequest is the body for POST /v1/memory_stores/{id}.
+//
+// Name and Description use pointer / raw-message semantics matching agent
+// updates: a nil Name leaves it unchanged; a non-nil Description that is
+// the JSON literal `null` clears the field.
+type MemoryStoreUpdateRequest struct {
+	Name        *string         `json:"name,omitempty"`
+	Description json.RawMessage `json:"description,omitempty"`
+}
