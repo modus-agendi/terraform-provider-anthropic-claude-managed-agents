@@ -3,7 +3,9 @@ package scenarios
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -81,6 +83,14 @@ func Load(path string) (*Scenario, error) {
 		return nil, fmt.Errorf("scenarios.Load %s: yaml unmarshal: %w", path, err)
 	}
 	s.sourcePath = path
+	// Substitute ${SCENARIO_DIR} → absolute path to the YAML's
+	// directory so resources like claude-managed-agents_skill can
+	// reference fixture dirs portably across machines. Done before
+	// validate so any escape from substitution is still rejected by
+	// the validator.
+	if abs, err := filepath.Abs(filepath.Dir(path)); err == nil {
+		s.TerraformConfig = strings.ReplaceAll(s.TerraformConfig, "${SCENARIO_DIR}", abs)
+	}
 	if err := s.validate(); err != nil {
 		return nil, fmt.Errorf("scenarios.Load %s: %w", path, err)
 	}
