@@ -6,6 +6,26 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-05-14
+
+No provider behavior changes since v0.3.0. This release packages
+documentation and contributor-tooling updates only; upgrading from
+v0.3.0 is a no-op for users.
+
+### Changed
+- **Docs**: `README.md` no longer carries the v0.1 / v0.2 retrospective
+  table. Status section now shows only the current shipped surface;
+  per-release history continues to live in this file.
+
+### Internal
+- **Routines**: codified the cloud Claude Code bug-fix routine config
+  under `.claude/routines/bug-fix/` (prompt, env-setup script,
+  recreate script, run-book). `make routine-sync` re-syncs the cloud
+  routine from the persisted prompt + JSON. Tool versions in the
+  env-setup script now match the Makefile pins
+  (`golangci-lint v1.62.0`, `tfplugindocs v0.20.1`,
+  `tfproviderdocs v0.12.1`).
+
 ## [0.3.0] - 2026-05-14
 
 ### Added
