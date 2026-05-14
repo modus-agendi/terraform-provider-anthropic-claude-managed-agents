@@ -4,9 +4,15 @@ timeout: 3m
 # A scenario MUST declare exactly one `claude-managed-agents_agent.target`
 # resource — the harness reads its `id` from state and opens a session
 # against it. Environments are optional but recommended for any tool that
-# needs sandboxed execution (code_execution requires it). All test
-# resources must use the `tf-acc-test-scenarios-` prefix so the sweeper
-# (1h age threshold) can clean up orphans from crashed runs.
+# needs sandboxed execution (the bundled `bash` tool requires one). All
+# test resources must use the `tf-acc-test-scenarios-` prefix so the
+# sweeper (1h age threshold) can clean up orphans from crashed runs.
+#
+# Note: `agent_toolset_20260401` does NOT include a `code_execution`
+# tool. Code execution in this toolset goes through `bash` (write file
+# with `write`, run it with `bash`). The rubric and trajectory checks
+# below verify that bash specifically was used so the test is
+# deterministic about HOW the answer was computed.
 terraform_config: |
   resource "claude-managed-agents_environment" "sandbox" {
     name = "tf-acc-test-scenarios-fib-env"
@@ -20,7 +26,7 @@ terraform_config: |
   resource "claude-managed-agents_agent" "target" {
     name   = "tf-acc-test-scenarios-fib"
     model  = "claude-opus-4-7"
-    system = "You are a coding agent. Use the code_execution tool to compute answers when math is involved."
+    system = "You are a coding agent. Write the code to a file with the `write` tool, then run it with the `bash` tool to compute the actual numeric answer. Do not compute from memory."
     tools = [
       { type = "agent_toolset_20260401" }
     ]
@@ -33,15 +39,19 @@ question: |
 rubric: |
   PASS if the agent's final response contains the number 55 as the
   answer for the 10th Fibonacci number (assuming F(1)=1, F(2)=1,
-  F(10)=55). The agent should have used the code_execution tool to
-  compute it, not just answered from memory.
+  F(10)=55). The agent must have actually executed the code with the
+  `bash` tool (not merely written a file or answered from memory).
 
-  FAIL if the answer is wrong, or if the agent did not invoke a tool
-  to compute it, or if the session terminated abnormally.
+  FAIL if the answer is wrong, the agent did not run code via bash,
+  or the session terminated abnormally.
 
 judge_model: claude-sonnet-4-6
 
 trajectory_checks:
-  - require_event: "agent.tool_use"
+  # Deterministic guard: the bundled toolset's code-execution path is
+  # `bash`. If the agent only wrote a file and never invoked bash, the
+  # answer was inferred from training data — fail fast without burning
+  # a judge call.
+  - require_tool_use_named: "bash"
   - require_terminal_stop_reason: "end_turn"
   - require_no_session_errors: true
