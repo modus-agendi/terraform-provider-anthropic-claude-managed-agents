@@ -397,6 +397,39 @@ func TestBuildJudgeUserPrompt_truncatesTranscript(t *testing.T) {
 	}
 }
 
+// --- ${SCENARIO_DIR} substitution ---------------------------------------
+
+func TestLoad_substitutesScenarioDir(t *testing.T) {
+	// The loader replaces ${SCENARIO_DIR} with the absolute path to
+	// the YAML's directory so resources like
+	// claude-managed-agents_skill can reference fixture dirs that
+	// travel with the scenario file rather than the cwd of `go test`.
+	if os.Getenv("TF_ACC") == "" {
+		t.Skip("set TF_ACC=1 to run scenario harness unit tests")
+	}
+	dir := t.TempDir()
+	yamlPath := filepath.Join(dir, "withsub.yaml")
+	writeFile(t, yamlPath, `
+name: withsub
+terraform_config: |
+  resource "x" "y" {
+    source_dir = "${SCENARIO_DIR}/../fixtures/example"
+  }
+question: q
+rubric: r
+`)
+	s, err := Load(yamlPath)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if strings.Contains(s.TerraformConfig, "${SCENARIO_DIR}") {
+		t.Errorf("expected ${SCENARIO_DIR} to be substituted, got:\n%s", s.TerraformConfig)
+	}
+	if !strings.Contains(s.TerraformConfig, dir) {
+		t.Errorf("expected absolute YAML dir %q in config, got:\n%s", dir, s.TerraformConfig)
+	}
+}
+
 // --- memory store auto-attach ------------------------------------------
 
 func TestExtractMemoryStoreResources(t *testing.T) {
