@@ -43,11 +43,31 @@ type fakeAPI struct {
 	creds          map[string]*fakeVaultCredential // keyed by credential id
 	files          map[string]*fakeFile
 	agentVersions  map[string][]map[string]any // agent_id → snapshots
+	skills         map[string]*fakeSkill
+	skillVersions  map[string][]*fakeSkillVersion // by skill_id, newest-last (append order)
+	skillEpoch     int64                          // monotonic counter to mint unique epoch-strings
 	counter        int
 	envCounter     int
 	storeCounter   int
 	vaultCounter   int
 	credCounter    int
+	skillCounter   int
+}
+
+type fakeSkill struct {
+	ID            string `json:"id"`
+	Type          string `json:"type"`
+	Source        string `json:"source"`
+	DisplayTitle  string `json:"display_title"`
+	LatestVersion string `json:"latest_version"`
+	CreatedAt     string `json:"created_at"`
+}
+
+type fakeSkillVersion struct {
+	Type      string `json:"type"`
+	SkillID   string `json:"skill_id"`
+	Version   string `json:"version"`
+	CreatedAt string `json:"created_at"`
 }
 
 type fakeVault struct {
@@ -121,7 +141,7 @@ type fakeFile struct {
 }
 
 func newFakeAPI() *fakeAPI {
-	return &fakeAPI{
+	f := &fakeAPI{
 		agents:         map[string]*fakeAgent{},
 		envs:           map[string]*fakeEnvironment{},
 		envBlockDelete: map[string]bool{},
@@ -130,7 +150,76 @@ func newFakeAPI() *fakeAPI {
 		creds:          map[string]*fakeVaultCredential{},
 		files:          map[string]*fakeFile{},
 		agentVersions:  map[string][]map[string]any{},
+		skills:         map[string]*fakeSkill{},
+		skillVersions:  map[string][]*fakeSkillVersion{},
 	}
+	// Seed Anthropic-prebuilt skills so the data source can resolve them in
+	// L2 mode. Versions are stable ISO-date strings to match the real API
+	// (custom-skill versions use epoch-form strings instead).
+	now := time.Now().UTC().Format(time.RFC3339)
+	for _, name := range []string{"xlsx", "pptx", "docx", "pdf"} {
+		f.skills[name] = &fakeSkill{
+			ID:            name,
+			Type:          "skill",
+			Source:        "anthropic",
+			DisplayTitle:  strings.ToUpper(name),
+			LatestVersion: "2025-10-02",
+			CreatedAt:     now,
+		}
+	}
+	return f
+}
+
+// MutateSkill runs mutate under lock so tests can simulate out-of-band edits
+// to drive drift-detection scenarios for the skill resource.
+func (f *fakeAPI) MutateSkill(id string, mutate func(s *fakeSkill, versions *[]*fakeSkillVersion)) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	s, ok := f.skills[id]
+	if !ok {
+		return
+	}
+	versions := f.skillVersions[id]
+	mutate(s, &versions)
+	f.skillVersions[id] = versions
+}
+
+// DeleteAllSkills wipes the (custom) skill map. Use to simulate an
+// out-of-band deletion before a Read step. Prebuilt seeds are preserved.
+func (f *fakeAPI) DeleteAllSkills() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for id, s := range f.skills {
+		if s.Source == "custom" {
+			delete(f.skills, id)
+			delete(f.skillVersions, id)
+		}
+	}
+}
+
+// SnapshotSkill returns a copy of the skill with id, or nil. For test assertions.
+func (f *fakeAPI) SnapshotSkill(id string) *fakeSkill {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	s, ok := f.skills[id]
+	if !ok {
+		return nil
+	}
+	cp := *s
+	return &cp
+}
+
+// SnapshotSkillVersions returns a copy of the version list for skill id.
+func (f *fakeAPI) SnapshotSkillVersions(id string) []*fakeSkillVersion {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	in := f.skillVersions[id]
+	out := make([]*fakeSkillVersion, len(in))
+	for i, v := range in {
+		cp := *v
+		out[i] = &cp
+	}
+	return out
 }
 
 // SeedFile installs a fake file record so the file data source can resolve it.
@@ -437,7 +526,260 @@ func (f *fakeAPI) handler() http.Handler {
 		http.Error(w, "not found", http.StatusNotFound)
 	})
 
+	mux.HandleFunc("/v1/skills", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodPost:
+			f.skillCreate(w, r)
+		case http.MethodGet:
+			f.skillList(w, r)
+		default:
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+
+	skillVersionItemRe := regexp.MustCompile(`^/v1/skills/([^/]+)/versions/([^/]+)$`)
+	skillVersionsRe := regexp.MustCompile(`^/v1/skills/([^/]+)/versions$`)
+	skillItemRe := regexp.MustCompile(`^/v1/skills/([^/]+)$`)
+
+	mux.HandleFunc("/v1/skills/", func(w http.ResponseWriter, r *http.Request) {
+		if m := skillVersionItemRe.FindStringSubmatch(r.URL.Path); m != nil {
+			if r.Method != http.MethodDelete {
+				http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+				return
+			}
+			f.skillVersionDelete(w, m[1], m[2])
+			return
+		}
+		if m := skillVersionsRe.FindStringSubmatch(r.URL.Path); m != nil {
+			switch r.Method {
+			case http.MethodGet:
+				f.skillVersionsList(w, m[1])
+			case http.MethodPost:
+				f.skillVersionCreate(w, r, m[1])
+			default:
+				http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			}
+			return
+		}
+		if m := skillItemRe.FindStringSubmatch(r.URL.Path); m != nil {
+			switch r.Method {
+			case http.MethodGet:
+				f.skillGet(w, m[1])
+			case http.MethodDelete:
+				f.skillDelete(w, m[1])
+			default:
+				http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			}
+			return
+		}
+		http.Error(w, "not found", http.StatusNotFound)
+	})
+
 	return mux
+}
+
+// --- skill handlers ---
+
+// nextSkillEpoch returns a unique monotonically-increasing epoch-form version
+// string. Caller must hold f.mu.
+func (f *fakeAPI) nextSkillEpoch() string {
+	// Anchor base on a real epoch so the version string looks plausible
+	// (e.g. "1747000000"). Each call bumps by 1 so collisions inside one
+	// test are impossible regardless of wall-clock resolution.
+	if f.skillEpoch == 0 {
+		f.skillEpoch = time.Now().UTC().Unix()
+	} else {
+		f.skillEpoch++
+	}
+	return fmt.Sprintf("%d", f.skillEpoch)
+}
+
+func (f *fakeAPI) skillCreate(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseMultipartForm(64 << 20); err != nil {
+		writeAPIErr(w, http.StatusBadRequest, "invalid_request_error", "multipart parse: "+err.Error())
+		return
+	}
+	displayTitle := r.FormValue("display_title")
+	if displayTitle == "" {
+		writeAPIErr(w, http.StatusBadRequest, "invalid_request_error", "display_title is required")
+		return
+	}
+	files := r.MultipartForm.File["files[]"]
+	if len(files) == 0 {
+		writeAPIErr(w, http.StatusBadRequest, "invalid_request_error", "files[] must not be empty")
+		return
+	}
+	var hasEntrypoint bool
+	for _, fh := range files {
+		if fh.Filename == "SKILL.md" {
+			hasEntrypoint = true
+		}
+	}
+	if !hasEntrypoint {
+		writeAPIErr(w, http.StatusBadRequest, "invalid_request_error", "SKILL.md is required at the root")
+		return
+	}
+
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.skillCounter++
+	now := time.Now().UTC().Format(time.RFC3339)
+	id := fmt.Sprintf("skill_FAKE%04d", f.skillCounter)
+	version := f.nextSkillEpoch()
+	s := &fakeSkill{
+		ID:            id,
+		Type:          "skill",
+		Source:        "custom",
+		DisplayTitle:  displayTitle,
+		LatestVersion: version,
+		CreatedAt:     now,
+	}
+	f.skills[id] = s
+	f.skillVersions[id] = append(f.skillVersions[id], &fakeSkillVersion{
+		Type: "skill_version", SkillID: id, Version: version, CreatedAt: now,
+	})
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(s)
+}
+
+func (f *fakeAPI) skillGet(w http.ResponseWriter, id string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	s, ok := f.skills[id]
+	if !ok {
+		writeAPIErr(w, http.StatusNotFound, "not_found_error", "no such skill")
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(s)
+}
+
+func (f *fakeAPI) skillDelete(w http.ResponseWriter, id string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	s, ok := f.skills[id]
+	if !ok {
+		writeAPIErr(w, http.StatusNotFound, "not_found_error", "no such skill")
+		return
+	}
+	if s.Source == "anthropic" {
+		writeAPIErr(w, http.StatusBadRequest, "invalid_request_error", "cannot delete an anthropic prebuilt skill")
+		return
+	}
+	if len(f.skillVersions[id]) > 0 {
+		writeAPIErr(w, http.StatusBadRequest, "invalid_request_error", "skill has versions; delete versions first")
+		return
+	}
+	delete(f.skills, id)
+	delete(f.skillVersions, id)
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(`{}`))
+}
+
+func (f *fakeAPI) skillList(w http.ResponseWriter, r *http.Request) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	source := r.URL.Query().Get("source")
+	out := struct {
+		Data    []*fakeSkill `json:"data"`
+		HasMore bool         `json:"has_more"`
+		FirstID string       `json:"first_id"`
+		LastID  string       `json:"last_id"`
+	}{Data: []*fakeSkill{}}
+	for _, s := range f.skills {
+		if source != "" && s.Source != source {
+			continue
+		}
+		out.Data = append(out.Data, s)
+	}
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(out)
+}
+
+func (f *fakeAPI) skillVersionsList(w http.ResponseWriter, skillID string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if _, ok := f.skills[skillID]; !ok {
+		writeAPIErr(w, http.StatusNotFound, "not_found_error", "no such skill")
+		return
+	}
+	versions := f.skillVersions[skillID]
+	out := struct {
+		Data    []*fakeSkillVersion `json:"data"`
+		HasMore bool                `json:"has_more"`
+		FirstID string              `json:"first_id"`
+		LastID  string              `json:"last_id"`
+	}{Data: versions}
+	if out.Data == nil {
+		out.Data = []*fakeSkillVersion{}
+	}
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(out)
+}
+
+func (f *fakeAPI) skillVersionCreate(w http.ResponseWriter, r *http.Request, skillID string) {
+	if err := r.ParseMultipartForm(64 << 20); err != nil {
+		writeAPIErr(w, http.StatusBadRequest, "invalid_request_error", "multipart parse: "+err.Error())
+		return
+	}
+	files := r.MultipartForm.File["files[]"]
+	if len(files) == 0 {
+		writeAPIErr(w, http.StatusBadRequest, "invalid_request_error", "files[] must not be empty")
+		return
+	}
+	var hasEntrypoint bool
+	for _, fh := range files {
+		if fh.Filename == "SKILL.md" {
+			hasEntrypoint = true
+		}
+	}
+	if !hasEntrypoint {
+		writeAPIErr(w, http.StatusBadRequest, "invalid_request_error", "SKILL.md is required at the root")
+		return
+	}
+
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	s, ok := f.skills[skillID]
+	if !ok {
+		writeAPIErr(w, http.StatusNotFound, "not_found_error", "no such skill")
+		return
+	}
+	if s.Source == "anthropic" {
+		writeAPIErr(w, http.StatusBadRequest, "invalid_request_error", "cannot version an anthropic prebuilt skill")
+		return
+	}
+	now := time.Now().UTC().Format(time.RFC3339)
+	version := f.nextSkillEpoch()
+	v := &fakeSkillVersion{Type: "skill_version", SkillID: skillID, Version: version, CreatedAt: now}
+	f.skillVersions[skillID] = append(f.skillVersions[skillID], v)
+	s.LatestVersion = version
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(v)
+}
+
+func (f *fakeAPI) skillVersionDelete(w http.ResponseWriter, skillID, version string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if _, ok := f.skills[skillID]; !ok {
+		writeAPIErr(w, http.StatusNotFound, "not_found_error", "no such skill")
+		return
+	}
+	versions := f.skillVersions[skillID]
+	idx := -1
+	for i, v := range versions {
+		if v.Version == version {
+			idx = i
+			break
+		}
+	}
+	if idx == -1 {
+		writeAPIErr(w, http.StatusNotFound, "not_found_error", "no such version")
+		return
+	}
+	f.skillVersions[skillID] = append(versions[:idx], versions[idx+1:]...)
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(`{}`))
 }
 
 func (f *fakeAPI) envCreate(w http.ResponseWriter, r *http.Request) {

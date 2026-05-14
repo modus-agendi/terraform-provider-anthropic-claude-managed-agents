@@ -6,6 +6,23 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+- Resource `claude-managed-agents_skill` for managing custom skill content
+  end-to-end via the Skills API beta (`skills-2025-10-02`). Walks a local
+  `source_dir`, computes a sha256 content hash combined with an optional
+  `version_rotation` counter, and uploads a new immutable version whenever
+  the hash changes. The 30 MB upload cap is enforced provider-side so the
+  error surfaces before any network call. `display_title` is immutable
+  (RequiresReplace) — the Skills API has no PATCH endpoint for it.
+  Destroy cascades through every version then deletes the skill itself,
+  tolerating 404 at each step.
+- Data source `claude-managed-agents_skill` for reading either prebuilt
+  Anthropic skills (`xlsx`, `pptx`, `docx`, `pdf`) or custom `skill_*`
+  ids. Returns `display_title`, `latest_version`, `source`, and
+  `created_at`.
+- Sweeper `sweep_skills` matching the `tf-acc-test-` prefix and the
+  shared 1-hour age threshold. Cascades through versions before deleting.
+
 ### Changed
 - **CI**: `live.yml` schedule promoted from weekly (Monday 03:00 UTC) to
   nightly (every day 03:00 UTC). Live-API divergences (the kind that
