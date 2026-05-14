@@ -474,16 +474,35 @@ type SessionUsage struct {
 	CacheReadInputTokens     int `json:"cache_read_input_tokens"`
 }
 
+// SessionResource is one entry in SessionCreateRequest.Resources. It
+// attaches an external object (memory store, file, or repository) to
+// the session at create time; the upstream API does not support
+// attaching additional resources to a running session, so callers must
+// know up front what the session needs.
+//
+// Type is the discriminator and selects which of the *ID fields is
+// honored. Instructions is optional session-specific guidance shown to
+// the agent alongside the resource's name and description; capped at
+// 4096 characters server-side.
+type SessionResource struct {
+	Type          string `json:"type"`
+	MemoryStoreID string `json:"memory_store_id,omitempty"`
+	FileID        string `json:"file_id,omitempty"`
+	RepositoryID  string `json:"repository_id,omitempty"`
+	Instructions  string `json:"instructions,omitempty"`
+}
+
 // SessionCreateRequest is the body for POST /v1/sessions. AgentID is sent
 // as the bare string form (latest agent version); pinning to a specific
 // version is not currently exposed by this client. EnvironmentID is
-// required by the upstream API in practice; VaultIDs and Title are
-// optional.
+// required by the upstream API in practice; VaultIDs, Resources, and
+// Title are optional.
 type SessionCreateRequest struct {
-	AgentID       string   `json:"agent"`
-	EnvironmentID string   `json:"environment_id,omitempty"`
-	VaultIDs      []string `json:"vault_ids,omitempty"`
-	Title         string   `json:"title,omitempty"`
+	AgentID       string            `json:"agent"`
+	EnvironmentID string            `json:"environment_id,omitempty"`
+	VaultIDs      []string          `json:"vault_ids,omitempty"`
+	Resources     []SessionResource `json:"resources,omitempty"`
+	Title         string            `json:"title,omitempty"`
 }
 
 // EventContent is one content block inside a user event. Today only the
