@@ -1,0 +1,67 @@
+name: scenarios
+
+# L5 behavioral scenarios run against the real Anthropic API and bill
+# real inference tokens. The workflow is gated to manual + nightly cron
+# (one hour after live.yml at 03:00 UTC) so PRs never trigger it.
+on:
+  workflow_dispatch:
+    inputs:
+      sweep_only:
+        description: "If true, only run the sweeper (skip scenarios)"
+        type: boolean
+        default: false
+  schedule:
+    - cron: "0 4 * * *"
+
+permissions:
+  contents: read
+
+jobs:
+  scenarios:
+    name: behavioral scenarios + sweep
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    env:
+      TF_ACC: "1"
+      TF_ACC_LIVE: "1"
+      TF_ACC_SCENARIOS: "1"
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4
+        with:
+          terraform_version: "1.11.*"
+          terraform_wrapper: false
+      - run: go mod download
+
+      - name: Pre-run sweep (clear orphans older than 1h)
+        run: |
+          go test ./internal/provider/... \
+            -v \
+            -sweep=anthropic \
+            -sweep-run=claude-managed-agents_agent \
+            -timeout 10m
+
+      - name: Scenarios
+        if: ${{ !inputs.sweep_only }}
+        run: |
+          go test ./internal/scenarios/... \
+            -count=1 \
+            -timeout 50m \
+            -v
+
+      - name: Post-run sweep (best-effort cleanup)
+        if: always() && !inputs.sweep_only
+        run: |
+          go test ./internal/provider/... \
+            -v \
+            -sweep=anthropic \
+            -sweep-run=claude-managed-agents_agent \
+            -sweep-allow-failures \
+            -timeout 10m

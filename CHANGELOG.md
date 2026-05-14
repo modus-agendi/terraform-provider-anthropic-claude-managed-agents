@@ -7,6 +7,15 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- **L5 behavioral test layer**. New `internal/scenarios/` package that
+  loads YAML-defined scenarios, provisions agents via Terraform, opens
+  real sessions against the Anthropic API, captures event trajectories,
+  and grades final answers via a separate `/v1/messages` LLM-as-judge
+  call. Gated behind `TF_ACC_SCENARIOS=1`; runs manually, nightly via
+  cron, and as a release gate. First scenario:
+  `fibonacci_default_toolset` (agent with the default Anthropic toolset
+  computes the 10th Fibonacci number; passes if 55 appears in the
+  response and the trajectory shows a tool was used).
 - Resource `claude-managed-agents_skill` for managing custom skill content
   end-to-end via the Skills API beta (`skills-2025-10-02`). Walks a local
   `source_dir`, computes a sha256 content hash combined with an optional

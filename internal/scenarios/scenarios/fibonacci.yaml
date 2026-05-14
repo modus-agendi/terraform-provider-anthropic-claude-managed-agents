@@ -1,0 +1,47 @@
+name: fibonacci_default_toolset
+timeout: 3m
+
+# A scenario MUST declare exactly one `claude-managed-agents_agent.target`
+# resource — the harness reads its `id` from state and opens a session
+# against it. Environments are optional but recommended for any tool that
+# needs sandboxed execution (code_execution requires it). All test
+# resources must use the `tf-acc-test-scenarios-` prefix so the sweeper
+# (1h age threshold) can clean up orphans from crashed runs.
+terraform_config: |
+  resource "claude-managed-agents_environment" "sandbox" {
+    name = "tf-acc-test-scenarios-fib-env"
+    config = {
+      type = "cloud"
+      networking = {
+        type = "unrestricted"
+      }
+    }
+  }
+  resource "claude-managed-agents_agent" "target" {
+    name   = "tf-acc-test-scenarios-fib"
+    model  = "claude-opus-4-7"
+    system = "You are a coding agent. Use the code_execution tool to compute answers when math is involved."
+    tools = [
+      { type = "agent_toolset_20260401" }
+    ]
+  }
+
+question: |
+  Write code that calculates the 10th Fibonacci number and returns the
+  number as the final answer.
+
+rubric: |
+  PASS if the agent's final response contains the number 55 as the
+  answer for the 10th Fibonacci number (assuming F(1)=1, F(2)=1,
+  F(10)=55). The agent should have used the code_execution tool to
+  compute it, not just answered from memory.
+
+  FAIL if the answer is wrong, or if the agent did not invoke a tool
+  to compute it, or if the session terminated abnormally.
+
+judge_model: claude-sonnet-4-6
+
+trajectory_checks:
+  - require_event: "agent.tool_use"
+  - require_terminal_stop_reason: "end_turn"
+  - require_no_session_errors: true
