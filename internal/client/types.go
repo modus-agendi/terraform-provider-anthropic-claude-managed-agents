@@ -2,6 +2,8 @@ package client
 
 import (
 	"encoding/json"
+	"fmt"
+	"strings"
 	"time"
 )
 
@@ -438,4 +440,186 @@ type File struct {
 type MemoryStoreUpdateRequest struct {
 	Name        *string         `json:"name,omitempty"`
 	Description json.RawMessage `json:"description,omitempty"`
+}
+
+// Session is the read shape returned by POST /v1/sessions and GET
+// /v1/sessions/{id}. Sessions are gated by the standard managed-agents
+// beta header (`managed-agents-2026-04-01`); no new beta override is
+// required.
+//
+// A session is a running instance of an agent inside an environment. The
+// `Status` field is one of "idle" | "running" | "rescheduling" |
+// "terminated"; the lifecycle is driven by user / agent events sent
+// through /events.
+type Session struct {
+	ID                 string            `json:"id"`
+	Type               string            `json:"type"`
+	AgentID            string            `json:"agent_id"`
+	EnvironmentID      *string           `json:"environment_id,omitempty"`
+	Status             string            `json:"status"`
+	Title              *string           `json:"title,omitempty"`
+	Usage              *SessionUsage     `json:"usage,omitempty"`
+	OutcomeEvaluations []json.RawMessage `json:"outcome_evaluations,omitempty"`
+	CreatedAt          time.Time         `json:"created_at"`
+	UpdatedAt          time.Time         `json:"updated_at"`
+	ArchivedAt         *time.Time        `json:"archived_at"`
+}
+
+// SessionUsage is the cumulative token-usage tally returned on Session.
+// Reported after the session goes idle.
+type SessionUsage struct {
+	InputTokens              int `json:"input_tokens"`
+	OutputTokens             int `json:"output_tokens"`
+	CacheCreationInputTokens int `json:"cache_creation_input_tokens"`
+	CacheReadInputTokens     int `json:"cache_read_input_tokens"`
+}
+
+// SessionCreateRequest is the body for POST /v1/sessions. AgentID is sent
+// as the bare string form (latest agent version); pinning to a specific
+// version is not currently exposed by this client. EnvironmentID is
+// required by the upstream API in practice; VaultIDs and Title are
+// optional.
+type SessionCreateRequest struct {
+	AgentID       string   `json:"agent"`
+	EnvironmentID string   `json:"environment_id,omitempty"`
+	VaultIDs      []string `json:"vault_ids,omitempty"`
+	Title         string   `json:"title,omitempty"`
+}
+
+// EventContent is one content block inside a user event. Today only the
+// "text" type is sent by this client; the struct is open-ended so other
+// types can be added without breaking the API.
+type EventContent struct {
+	Type string `json:"type"`
+	Text string `json:"text,omitempty"`
+}
+
+// UserEvent is one entry of the `events` array on POST
+// /v1/sessions/{id}/events. The harness only needs `user.message` today;
+// other discriminator fields (custom_tool_use_id, tool_use_id, result,
+// deny_message) are intentionally omitted and will be added when the
+// harness gains tool-confirmation support.
+type UserEvent struct {
+	Type    string         `json:"type"`
+	Content []EventContent `json:"content,omitempty"`
+}
+
+// SessionEvent is one entry in the session's read-side event log.
+//
+// The session event stream is a discriminated union with ~25 variants
+// (see events-and-streaming.md). Rather than model every variant
+// statically, this struct keeps the discriminator fields (ID, Type,
+// ProcessedAt) and stashes the full event JSON in RawData. Per-event
+// extraction lives on dedicated helpers (AgentMessageText, ToolUseName,
+// StopReasonType, ErrorMessage); callers that need richer access can
+// unmarshal RawData themselves.
+type SessionEvent struct {
+	ID          string          `json:"id"`
+	Type        string          `json:"type"`
+	ProcessedAt *time.Time      `json:"processed_at,omitempty"`
+	RawData     json.RawMessage `json:"-"`
+}
+
+// UnmarshalJSON captures the full event body so per-variant helpers can
+// re-parse on demand, while still populating the common ID / Type /
+// ProcessedAt discriminator fields.
+func (e *SessionEvent) UnmarshalJSON(data []byte) error {
+	var meta struct {
+		ID          string     `json:"id"`
+		Type        string     `json:"type"`
+		ProcessedAt *time.Time `json:"processed_at"`
+	}
+	if err := json.Unmarshal(data, &meta); err != nil {
+		return err
+	}
+	e.ID = meta.ID
+	e.Type = meta.Type
+	e.ProcessedAt = meta.ProcessedAt
+	e.RawData = append(e.RawData[:0], data...)
+	return nil
+}
+
+// AgentMessageText concatenates the `text` field of every "text" block in
+// an `agent.message` event's `content[]`. Returns an empty string with no
+// error if there are no text blocks (e.g. a message with only tool-use
+// content). Returns an error only if RawData itself is malformed.
+func (e *SessionEvent) AgentMessageText() (string, error) {
+	var payload struct {
+		Content []struct {
+			Type string `json:"type"`
+			Text string `json:"text"`
+		} `json:"content"`
+	}
+	if err := json.Unmarshal(e.RawData, &payload); err != nil {
+		return "", fmt.Errorf("session event %s: unmarshal agent.message: %w", e.ID, err)
+	}
+	var sb strings.Builder
+	for _, block := range payload.Content {
+		if block.Type == "text" {
+			sb.WriteString(block.Text)
+		}
+	}
+	return sb.String(), nil
+}
+
+// ToolUseName extracts the `name` field of an `agent.tool_use` (or
+// `agent.mcp_tool_use` / `agent.custom_tool_use`) event. Returns an empty
+// string if the field is absent.
+func (e *SessionEvent) ToolUseName() (string, error) {
+	var payload struct {
+		Name string `json:"name"`
+	}
+	if err := json.Unmarshal(e.RawData, &payload); err != nil {
+		return "", fmt.Errorf("session event %s: unmarshal tool_use: %w", e.ID, err)
+	}
+	return payload.Name, nil
+}
+
+// StopReasonType extracts `stop_reason.type` from a `session.status_idle`
+// event (e.g. "end_turn", "requires_action"). Returns an empty string if
+// no stop_reason is set on the event.
+func (e *SessionEvent) StopReasonType() (string, error) {
+	var payload struct {
+		StopReason *struct {
+			Type string `json:"type"`
+		} `json:"stop_reason"`
+	}
+	if err := json.Unmarshal(e.RawData, &payload); err != nil {
+		return "", fmt.Errorf("session event %s: unmarshal status_idle: %w", e.ID, err)
+	}
+	if payload.StopReason == nil {
+		return "", nil
+	}
+	return payload.StopReason.Type, nil
+}
+
+// ErrorMessage extracts the inner error message from a `session.error`
+// event. Returns an empty string if the field is absent.
+func (e *SessionEvent) ErrorMessage() (string, error) {
+	var payload struct {
+		Error struct {
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal(e.RawData, &payload); err != nil {
+		return "", fmt.Errorf("session event %s: unmarshal session.error: %w", e.ID, err)
+	}
+	return payload.Error.Message, nil
+}
+
+// JudgeRequest is the input to JudgeVerdict. SystemPrompt + UserPrompt
+// are mapped onto the Messages API as `system` + a single user message.
+type JudgeRequest struct {
+	Model        string
+	SystemPrompt string
+	UserPrompt   string
+	MaxTokens    int
+}
+
+// JudgeResult is the structured JSON the judge model is expected to
+// produce as its only content block. Verdict must be exactly "PASS" or
+// "FAIL"; anything else is treated as a malformed response.
+type JudgeResult struct {
+	Verdict string `json:"verdict"`
+	Reason  string `json:"reason"`
 }
