@@ -6,6 +6,33 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-05-14
+
+No provider behavior changes since v0.3.1. This release exists primarily
+to probe whether the Terraform Registry refreshes the cached provider
+description (currently empty since v0.1.0) on a new version publish.
+
+### Changed
+- **Repo metadata**: GitHub description now enumerates the covered
+  resources (agents, MCP servers, skills, vaults, memory stores) and
+  the TF 1.11 write-only secret handling, instead of a single-line
+  summary. Topics extended to include `claude-api` and `hashicorp`
+  (14 topics total).
+- **Docs**: refreshed `SECURITY.md` supported-versions matrix to
+  reflect v0.3.x being the only supported line. Added
+  `internal/scenarios/` to the in-scope list since L5 scenarios
+  execute real inference.
+- **Docs**: `CONTRIBUTING.md` test-layer table now includes the L5
+  row, the CI matrix is corrected to TF 1.11/1.12/latest, and the
+  live-tests section is split between `live.yml` (L3 CRUD) and
+  `scenarios.yml` (L5 behavioral) with their actual triggers and
+  release-gate role.
+- **README**: added an "Anthropic Terraform provider — what this
+  covers" section near the top that enumerates each resource and
+  clarifies the scope is the Managed Agents API (not the Messages
+  API). Helps the Terraform Registry and GitHub search land readers
+  on the relevant section.
+
 ## [0.3.1] - 2026-05-14
 
 No provider behavior changes since v0.3.0. This release packages
