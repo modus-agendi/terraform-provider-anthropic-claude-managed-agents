@@ -87,13 +87,72 @@ func (c *Client) JudgeVerdict(ctx context.Context, req JudgeRequest) (*JudgeResu
 		}
 	}
 
+	// The judge prompt asks for JSON-only output, but models
+	// occasionally lead with reasoning prose ("Looking at the
+	// transcript…") and then emit the JSON object. Extract the first
+	// {...} balanced object from the raw text instead of treating the
+	// entire body as JSON. Tightening the prompt alone is not enough —
+	// model compliance varies turn to turn.
+	jsonStr := extractFirstJSONObject(raw)
+	if jsonStr == "" {
+		return nil, fmt.Errorf("%w: no JSON object found in response %q", ErrJudgeMalformed, raw)
+	}
+
 	var result JudgeResult
-	if err := json.Unmarshal([]byte(raw), &result); err != nil {
-		return nil, fmt.Errorf("%w: unmarshal verdict JSON from %q: %w", ErrJudgeMalformed, raw, err)
+	if err := json.Unmarshal([]byte(jsonStr), &result); err != nil {
+		return nil, fmt.Errorf("%w: unmarshal verdict JSON from %q: %w", ErrJudgeMalformed, jsonStr, err)
 	}
 	if result.Verdict != "PASS" && result.Verdict != "FAIL" {
 		return nil, fmt.Errorf("%w: verdict must be PASS or FAIL, got %q (raw: %s)", ErrJudgeMalformed, result.Verdict, raw)
 	}
 	result.Usage = resp.Usage
 	return &result, nil
+}
+
+// extractFirstJSONObject returns the substring of s spanning the first
+// balanced top-level '{' ... '}' pair, or "" if no such object is
+// present. Quoted strings (including escaped quotes) are handled so a
+// brace inside a JSON string value doesn't unbalance the count.
+//
+// Used by JudgeVerdict to tolerate judge models that prefix their JSON
+// verdict with explanatory prose despite the system prompt asking for
+// JSON-only output.
+func extractFirstJSONObject(s string) string {
+	start := -1
+	depth := 0
+	inString := false
+	escape := false
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if escape {
+			escape = false
+			continue
+		}
+		if inString {
+			switch c {
+			case '\\':
+				escape = true
+			case '"':
+				inString = false
+			}
+			continue
+		}
+		switch c {
+		case '"':
+			inString = true
+		case '{':
+			if depth == 0 {
+				start = i
+			}
+			depth++
+		case '}':
+			if depth > 0 {
+				depth--
+				if depth == 0 {
+					return s[start : i+1]
+				}
+			}
+		}
+	}
+	return ""
 }
