@@ -8,7 +8,8 @@ the policy will shift to "last two minor lines."
 
 | Version | Supported          |
 |---------|--------------------|
-| 0.2.x   | :white_check_mark: |
+| 0.3.x   | :white_check_mark: |
+| 0.2.x   | :x:                |
 | 0.1.x   | :x:                |
 
 ## Reporting a vulnerability
@@ -37,8 +38,11 @@ you ask us not to.
 In scope:
 
 - the provider binary (`terraform-provider-claude-managed-agents`),
-- the Go modules under `internal/client/` and `internal/provider/`,
+- the Go modules under `internal/client/`, `internal/provider/`, and `internal/scenarios/`,
 - the release pipeline in `.github/workflows/release.yml`,
+- the L5 behavioral scenarios in `internal/scenarios/scenarios/*.yaml` and the
+  shared harness, since they execute against the real Anthropic API and
+  consume credits scoped to the configured `ANTHROPIC_API_KEY`,
 - examples and documentation that, if followed verbatim, would lead a user
   into an insecure configuration.
 

@@ -88,9 +88,10 @@ The `## comment` is what shows up in `make help`. Keep it under 70 chars.
 | Layer | Where | When in CI | Hits real API | Cost |
 |---|---|---|---|---|
 | **L1 — Unit** | `internal/client/*_test.go` | every PR/push (race + coverage) | no | free |
-| **L2 — Integration (httptest)** | `internal/provider/*_test.go` (with `TF_ACC=1`) | every PR/push, TF 1.8/1.9/1.10 matrix | no, uses in-process fake | free |
-| **L3 — Live acceptance** | same files (with `TF_ACC_LIVE=1`) | manual `workflow_dispatch` only | yes | per-agent API calls |
-| **L4 — Sweeper** | `internal/provider/sweep_test.go` | runs around L3 | yes (archive only) | minimal |
+| **L2 — Integration (httptest)** | `internal/provider/*_test.go` (with `TF_ACC=1`) | every PR/push, TF 1.11/1.12/latest matrix | no, uses in-process fake | free |
+| **L3 — Live acceptance** | same files (with `TF_ACC_LIVE=1`) | manual `workflow_dispatch` + nightly + release gate | yes | per-agent CRUD calls |
+| **L4 — Sweeper** | `internal/provider/sweep_test.go` | runs around L3 / L5 | yes (archive only) | minimal |
+| **L5 — Behavioral scenarios** | `internal/scenarios/scenarios/*.yaml` (with `TF_ACC_SCENARIOS=1`) | manual + nightly cron + release gate | yes (sessions, real inference) | ~$0.60/run total at current scenario count |
 
 The httptest fixture in `internal/provider/testutil_test.go` keeps an in-memory
 map of agents and serves canned JSON responses. The same test cases run
@@ -98,18 +99,23 @@ unmodified against the real API when `TF_ACC_LIVE=1` is set.
 
 ## Live tests
 
-Live tests are gated to manual dispatch:
+Two workflows hit the live API. Both need `ANTHROPIC_API_KEY` configured as
+a repo secret and both are gated against PR triggers.
+
+### `live.yml` — L3 CRUD acceptance
+
+Runs the same provider acceptance suite as the httptest layer, with the
+fake fixture bypassed. Triggered by:
 
 ```sh
-# from anywhere with `gh` configured:
+# manual dispatch:
 gh workflow run live.yml
 
-# or with sweeper only (no actual tests, just clean up old test agents):
+# sweeper-only mode (no actual tests, just clean up old test agents):
 gh workflow run live.yml -f sweep_only=true
 ```
 
-The live workflow needs `ANTHROPIC_API_KEY` configured as a repo secret. It
-runs:
+Also runs nightly at 03:00 UTC and as a release gate. Sequence:
 
 1. **Pre-sweep** — archive agents older than 1 hour whose name starts with
    `tf-acc-test-`.
@@ -117,15 +123,35 @@ runs:
    fixture bypassed.
 3. **Post-sweep** — best-effort cleanup of anything the run created.
 
-If you want a snapshot of what's about to be swept without acting, run
-`make sweep` locally with a short threshold:
+### `scenarios.yml` — L5 behavioral scenarios
+
+Provisions agents via Terraform, opens real sessions against
+`api.anthropic.com`, captures event trajectories, and grades the final
+answer with an LLM-as-judge call. Each scenario is a YAML file under
+`internal/scenarios/scenarios/`. Triggered by:
+
+```sh
+gh workflow run scenarios.yml
+
+# sweeper-only:
+gh workflow run scenarios.yml -f sweep_only=true
+```
+
+Also runs nightly at 04:00 UTC (one hour after `live.yml`) and as a
+release gate. Real inference tokens are billed; budget ~$0.60 per run at
+the current scenario count (Fibonacci + multi-capability research).
+
+### Sweeper
+
+`make sweep` runs the same prefix-based cleanup locally:
 
 ```sh
 ANTHROPIC_API_KEY=... make sweep
 ```
 
-The sweeper only archives agents whose name starts with `tf-acc-test-` —
-real (non-test) agents are never touched.
+The sweeper only archives agents (and skills, environments, etc.) whose
+name starts with `tf-acc-test-` and that are older than 1 hour — real
+(non-test) resources are never touched.
 
 ## Test naming convention
 
@@ -143,7 +169,19 @@ concurrent CI runs.
 ## Releases
 
 The release workflow is triggered by pushing a tag of the form `vX.Y.Z`. The
-maintainer is responsible for:
+pipeline runs three gates sequentially before publishing:
+
+1. **L3 live acceptance** — full CRUD suite against `api.anthropic.com`.
+2. **L5 behavioral scenarios** — every YAML in `internal/scenarios/scenarios/`,
+   including the multi-capability mega-scenario. Hard release gate.
+3. **goreleaser + SLSA provenance** — only runs if both gates pass; produces
+   signed artifacts the Terraform/OpenTofu registries can ingest.
+
+A hotfix bypass exists for the L5 gate (`workflow_dispatch.inputs.skip_scenarios=true`),
+usable only when re-triggering the release workflow manually. Tag-push
+triggers cannot skip scenarios.
+
+Maintainer checklist for cutting a release:
 
 1. Bumping `CHANGELOG.md` (move items from Unreleased into a new dated section).
 2. Tagging: `git tag vX.Y.Z && git push origin vX.Y.Z`.

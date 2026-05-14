@@ -19,7 +19,7 @@ body:
     attributes:
       label: Provider version
       description: Output of `terraform providers` or the `version` constraint in your config.
-      placeholder: "0.2.0"
+      placeholder: "0.3.1"
     validations:
       required: true
 
