@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"time"
 )
 
 // CreateSession issues POST /v1/sessions. AgentID is required; the upstream
@@ -68,29 +69,41 @@ func (c *Client) PostSessionEvents(ctx context.Context, sessionID string, events
 
 // ListSessionEventsParams holds query parameters for ListSessionEvents.
 //
-// After is the cursor for tailing — the API returns only events with an
-// id strictly greater than After. Types filters the response to a fixed
-// set of event types (e.g. []{"agent.message", "session.status_idle"}).
+// CreatedAfter is the cursor for tailing — the API returns only events
+// strictly later than this timestamp (encoded as created_at[gt]). Types
+// filters the response to a fixed set of event types (e.g.
+// []{"agent.message", "session.status_idle"}). Limit, if non-zero, caps
+// the page size; zero falls back to the server default.
+//
+// Note: the upstream events endpoint does NOT support an id-based cursor.
+// The only valid filters are created_at[gt|gte|lt|lte], limit, order,
+// page, and types[]. Pollers tailing for new events should track the
+// max ProcessedAt they've seen and dedupe by event ID on the client side
+// to handle events sharing a single timestamp.
 type ListSessionEventsParams struct {
-	After string
-	Types []string
+	CreatedAfter time.Time
+	Types        []string
+	Limit        int
 }
 
 // ListSessionEvents issues GET /v1/sessions/{id}/events.
 //
-// The harness uses this as a poll loop: pass the last seen event id as
-// `After` to retrieve only newer events. Pagination follows the standard
-// ListResponse[T] cursor envelope.
+// The harness uses this as a poll loop: pass the last seen event
+// timestamp as `CreatedAfter` to retrieve only newer events. Pagination
+// follows the standard ListResponse[T] envelope.
 func (c *Client) ListSessionEvents(ctx context.Context, sessionID string, params ListSessionEventsParams) (*ListResponse[SessionEvent], error) {
 	if sessionID == "" {
 		return nil, fmt.Errorf("client.ListSessionEvents: session_id is required")
 	}
 	q := url.Values{}
-	if params.After != "" {
-		q.Set("after", params.After)
+	if !params.CreatedAfter.IsZero() {
+		q.Set("created_at[gt]", params.CreatedAfter.UTC().Format(time.RFC3339Nano))
 	}
 	for _, t := range params.Types {
 		q.Add("types[]", t)
+	}
+	if params.Limit > 0 {
+		q.Set("limit", fmt.Sprintf("%d", params.Limit))
 	}
 	path := "/v1/sessions/" + url.PathEscape(sessionID) + "/events"
 	if encoded := q.Encode(); encoded != "" {

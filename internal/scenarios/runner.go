@@ -237,8 +237,9 @@ func runScenario(t *testing.T, scn *Scenario, agg *aggregator) {
 // approval) continue polling — the harness assumes auto-allow tools.
 func pollUntilTerminal(ctx context.Context, c *client.Client, sessionID string) ([]client.SessionEvent, error) {
 	var (
-		trajectory []client.SessionEvent
-		lastSeen   string
+		trajectory   []client.SessionEvent
+		seen         = map[string]bool{}
+		lastTS       time.Time
 	)
 	ticker := time.NewTicker(pollInterval)
 	defer ticker.Stop()
@@ -248,13 +249,29 @@ func pollUntilTerminal(ctx context.Context, c *client.Client, sessionID string) 
 			return trajectory, ctx.Err()
 		default:
 		}
-		page, err := c.ListSessionEvents(ctx, sessionID, client.ListSessionEventsParams{After: lastSeen})
+		// Re-fetch with a small overlap window. created_at[gt] is
+		// exclusive, so we step back ~1s to avoid losing events that
+		// share a timestamp with the previous max. The seen-ID set
+		// drops the duplicates this introduces.
+		var cursor time.Time
+		if !lastTS.IsZero() {
+			cursor = lastTS.Add(-time.Second)
+		}
+		page, err := c.ListSessionEvents(ctx, sessionID, client.ListSessionEventsParams{
+			CreatedAfter: cursor,
+		})
 		if err != nil {
 			return trajectory, err
 		}
 		for _, e := range page.Data {
+			if seen[e.ID] {
+				continue
+			}
+			seen[e.ID] = true
 			trajectory = append(trajectory, e)
-			lastSeen = e.ID
+			if e.ProcessedAt != nil && e.ProcessedAt.After(lastTS) {
+				lastTS = *e.ProcessedAt
+			}
 			switch e.Type {
 			case "session.status_terminated":
 				return trajectory, fmt.Errorf("session terminated")
