@@ -6,6 +6,31 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.3.3] - 2026-05-14
+
+This release supersedes the unpublished v0.3.2 tag (release artifacts
+never shipped because the L5 Fibonacci gate failed; the underlying
+issues are fixed here).
+
+### Fixed
+- **L5 Fibonacci scenario**: aligned the rubric and trajectory check
+  with what the bundled toolset actually exposes.
+  `agent_toolset_20260401` does NOT include a `code_execution` tool —
+  the bundled set is `bash`, `read`, `write`, `edit`, `glob`, `grep`,
+  `web_fetch`, `web_search`. The previous rubric required a tool that
+  could never be invoked. The agent's only execution path is via
+  `bash` (write the code file with `write`, run it with `bash python
+  fib.py`); the scenario now requires that exact sequence via
+  `require_tool_use_named: bash` (deterministic) instead of the lax
+  `require_event: agent.tool_use`.
+- **Judge response parser** (`internal/client/judge.go`): the parser
+  was strict about JSON-only output. Judge models occasionally lead
+  with reasoning prose before the JSON verdict despite the
+  system-prompt instruction. The parser now extracts the first
+  balanced `{...}` JSON object from the response body, with awareness
+  of string literals so a `}` inside a value doesn't unbalance.
+  Backward-compatible: pure-JSON responses parse identically.
+
 ## [0.3.2] - 2026-05-14
 
 No provider behavior changes since v0.3.1. This release exists primarily
