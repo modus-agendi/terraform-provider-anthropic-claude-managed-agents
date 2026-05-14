@@ -1,0 +1,35 @@
+{
+  "_comment": "Routine config manifest. Source of truth for the routine's API-recreatable fields. The prompt body itself lives in prompt.md; recreate.sh splices it in at deploy time. Web-UI-only fields (env vars, setup script, GitHub event triggers, API bearer tokens) are NOT captured here — see README.md.",
+  "name": "Bug fix routine — terraform-provider-claude-managed-agents",
+  "cron_expression": "0 4 * * *",
+  "_cron_comment": "04:00 UTC = 06:00 Europe/Berlin in CEST (summer), 05:00 in CET (winter). Cron is not DST-aware. Edit if you'd rather lock to wall-clock winter time.",
+  "enabled": true,
+  "job_config": {
+    "ccr": {
+      "environment_id": "env_014P2iEKKurZK16RZGfNpr2C",
+      "_environment_id_comment": "Default cloud environment. Update via web UI to attach a custom environment that has ANTHROPIC_API_KEY and the env-setup.sh setup script.",
+      "session_context": {
+        "model": "claude-sonnet-4-6",
+        "_model_comment": "Bump to claude-opus-4-7 in the web UI if fix quality on a Go provider codebase is mediocre.",
+        "sources": [
+          {"git_repository": {"url": "https://github.com/andasv/terraform-provider-claude-managed-agents"}}
+        ],
+        "allowed_tools": ["Bash", "Read", "Write", "Edit", "Glob", "Grep"]
+      },
+      "events": [
+        {
+          "data": {
+            "uuid": "REPLACE_AT_DEPLOY_TIME",
+            "session_id": "",
+            "type": "user",
+            "parent_tool_use_id": null,
+            "message": {
+              "content": "REPLACE_WITH_PROMPT_MD",
+              "role": "user"
+            }
+          }
+        }
+      ]
+    }
+  }
+}
