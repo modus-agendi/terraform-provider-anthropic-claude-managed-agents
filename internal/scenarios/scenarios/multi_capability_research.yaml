@@ -1,0 +1,139 @@
+name: multi_capability_research
+timeout: 10m
+judge_model: claude-sonnet-4-6
+
+# Mega-scenario: exercises four capabilities in a single session so a
+# regression in any one of them surfaces in CI:
+#
+#   1. Public MCP server          → DeepWiki (https://mcp.deepwiki.com/mcp)
+#   2. Multiagent (2 sub-agents)  → researcher + verifier
+#   3. Rare-pkg environment       → cloud / unrestricted / pip: [tabulate]
+#   4. Memory store               → auto-attached at session create
+#
+# Custom skill is intentionally NOT exercised here — see issue #32 (the
+# skill resource cannot upload against the live API yet). Once that
+# lands, add a `claude-managed-agents_skill` referencing the local
+# fixture under ${SCENARIO_DIR}/../fixtures/tabulate_skill and attach
+# it to the target agent.
+#
+# Substitution: ${SCENARIO_DIR} resolves to this YAML's directory at
+# load time.
+terraform_config: |
+  resource "claude-managed-agents_environment" "sandbox" {
+    name = "tf-acc-test-scenarios-multi-env"
+    config = {
+      type = "cloud"
+      networking = {
+        type = "unrestricted"
+      }
+      packages = {
+        pip = ["tabulate"]
+      }
+    }
+  }
+
+  resource "claude-managed-agents_memory_store" "research_mem" {
+    name        = "tf-acc-test-scenarios-multi-mem"
+    description = "Scratch memory for the multi-capability research scenario. The agent writes facts here and a verifier sub-agent reads them back."
+  }
+
+  # researcher sub-agent: queries DeepWiki MCP and returns facts.
+  resource "claude-managed-agents_agent" "researcher" {
+    name   = "tf-acc-test-scenarios-multi-researcher"
+    model  = "claude-opus-4-7"
+    system = "You are a research sub-agent. Use the deepwiki MCP tools to look up factual information about public GitHub repositories. Return findings as concise, structured facts."
+
+    mcp_servers = [
+      {
+        type = "url"
+        name = "deepwiki"
+        url  = "https://mcp.deepwiki.com/mcp"
+      },
+    ]
+    tools = [
+      { type = "agent_toolset_20260401" },
+      {
+        type            = "mcp_toolset"
+        mcp_server_name = "deepwiki"
+        default_config = {
+          permission_policy = { type = "always_allow" }
+        }
+      },
+    ]
+  }
+
+  # verifier sub-agent: reads the memory store and confirms a license fact.
+  resource "claude-managed-agents_agent" "verifier" {
+    name   = "tf-acc-test-scenarios-multi-verifier"
+    model  = "claude-opus-4-7"
+    system = "You are a verifier sub-agent. Read the attached memory store file requests_facts.md and confirm whether it states the license is Apache-2.0. Reply with exactly one line: either 'CONFIRMED: license is Apache-2.0' or 'NOT CONFIRMED: <reason>'."
+
+    tools = [
+      { type = "agent_toolset_20260401" },
+    ]
+  }
+
+  # target (parent) agent: orchestrates researcher → tabulate → memory → verifier.
+  resource "claude-managed-agents_agent" "target" {
+    name   = "tf-acc-test-scenarios-multi-coordinator"
+    model  = "claude-opus-4-7"
+    system = "You are a research coordinator. You MUST complete all five workflow steps below in the SAME turn before responding to the user. Do NOT end your turn after delegating — wait for the sub-agent's reply, then continue. Workflow: (1) delegate a DeepWiki lookup to the researcher sub-agent for the license, primary language, and main module of the psf/requests Python repo; WAIT for its response. (2) Use the Python `tabulate` package (already pip-installed) via code_execution to render the three facts as a 2-column grid table: `from tabulate import tabulate; print(tabulate(rows, headers=['Field','Value'], tablefmt='grid'))`. (3) Save the rendered table to the attached memory store under filename `requests_facts.md`. (4) Delegate to the verifier sub-agent to confirm the license is Apache-2.0; WAIT for its reply. (5) Only after step 4 returns, write your final response: include the license value, the table you rendered, and the verifier's confirmation. Do not stop after step 1 — you have not finished your job until step 5 is done."
+
+    mcp_servers = [
+      {
+        type = "url"
+        name = "deepwiki"
+        url  = "https://mcp.deepwiki.com/mcp"
+      },
+    ]
+    tools = [
+      { type = "agent_toolset_20260401" },
+      {
+        type            = "mcp_toolset"
+        mcp_server_name = "deepwiki"
+        default_config = {
+          permission_policy = { type = "always_allow" }
+        }
+      },
+    ]
+    multiagent = {
+      type = "coordinator"
+      agents = [
+        { type = "agent", id = claude-managed-agents_agent.researcher.id },
+        { type = "agent", id = claude-managed-agents_agent.verifier.id },
+      ]
+    }
+  }
+
+question: |
+  Look up three facts about the public GitHub repository `psf/requests`
+  (the popular Python HTTP library): its license, its primary
+  programming language, and the name of its main importable module.
+  Render those three facts as a 2-column ASCII table with the columns
+  "Field" and "Value", and save the rendered table to the attached
+  memory store under the filename requests_facts.md. Then have the
+  verifier sub-agent confirm that the saved memory entry states the
+  license is Apache-2.0. Summarize the result in your final response.
+
+rubric: |
+  PASS if ALL of the following are true:
+    1. The agent's final response mentions Apache-2.0 as the license of
+       psf/requests.
+    2. The agent's final response references a tabulated rendering of
+       the three facts (license, language, main module).
+    3. The agent reports that the verifier sub-agent confirmed the
+       license is Apache-2.0.
+
+  FAIL if:
+    - The license is missing, wrong, or contradicted.
+    - The verifier was not invoked, or its confirmation is missing.
+    - The session terminated abnormally.
+
+trajectory_checks:
+  # Proof of multiagent dispatch: the coordinator received a reply from
+  # at least one sub-agent thread.
+  - require_event: "agent.thread_message_received"
+  # Bundled-tool use (code_execution for tabulate, memory writes, etc.).
+  - require_event: "agent.tool_use"
+  - require_terminal_stop_reason: "end_turn"
+  - require_no_session_errors: true
