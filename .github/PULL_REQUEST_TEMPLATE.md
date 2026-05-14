@@ -36,7 +36,7 @@ documentation-only PR).
 - [ ] Example in `examples/resources/...` + `examples/data-sources/...`
 - [ ] Import script in `examples/resources/<name>/import.sh`
 - [ ] CHANGELOG entry under `[Unreleased] / Added`
-- [ ] README scope table updated
+- [ ] README capability table updated (mark resource + data source as `shipped`)
 
 ## Risks / rollback
 

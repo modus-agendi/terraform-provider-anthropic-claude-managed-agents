@@ -6,7 +6,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Before filing, check the [README scope table](../README.md#scope) —
+        Before filing, check the [README capability table](../README.md#status--scope) —
         some resources are deliberately deferred or out of scope (sessions,
         dreams, webhooks). For those, please open a Discussion instead.
 
