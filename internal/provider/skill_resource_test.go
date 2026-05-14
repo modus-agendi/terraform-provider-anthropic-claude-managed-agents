@@ -30,10 +30,10 @@ import (
 func writeSkillFixture(t *testing.T, body string) string {
 	t.Helper()
 	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "SKILL.md"), []byte("---\nname: tf-acc-skill\n---\n"+body), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "SKILL.md"), []byte("---\nname: tf-acc-skill\n---\n"+body), 0o600); err != nil {
 		t.Fatalf("write SKILL.md: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "notes.md"), []byte("# Notes\n"+body), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "notes.md"), []byte("# Notes\n"+body), 0o600); err != nil {
 		t.Fatalf("write notes.md: %v", err)
 	}
 	return dir
@@ -44,7 +44,7 @@ func writeSkillFixture(t *testing.T, body string) string {
 func writeSkillFixtureNoEntrypoint(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "notes.md"), []byte("not a skill"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "notes.md"), []byte("not a skill"), 0o600); err != nil {
 		t.Fatalf("write notes.md: %v", err)
 	}
 	return dir
@@ -54,14 +54,14 @@ func writeSkillFixtureNoEntrypoint(t *testing.T) string {
 func writeSkillFixtureOversize(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "SKILL.md"), []byte("---\nname: too-big\n---\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "SKILL.md"), []byte("---\nname: too-big\n---\n"), 0o600); err != nil {
 		t.Fatalf("write SKILL.md: %v", err)
 	}
 	big := make([]byte, 31*1024*1024)
 	if _, err := rand.Read(big); err != nil {
 		t.Fatalf("rand: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "big.bin"), big, 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "big.bin"), big, 0o600); err != nil {
 		t.Fatalf("write big.bin: %v", err)
 	}
 	return dir
@@ -138,7 +138,7 @@ func TestAccSkillResource_versionBumpOnContentChange(t *testing.T) {
 			{
 				PreConfig: func() {
 					// Mutate fixture between steps to force a new content_hash.
-					if err := os.WriteFile(filepath.Join(dir, "SKILL.md"), []byte("---\nname: tf-acc-skill\n---\nv2 content"), 0o644); err != nil {
+					if err := os.WriteFile(filepath.Join(dir, "SKILL.md"), []byte("---\nname: tf-acc-skill\n---\nv2 content"), 0o600); err != nil {
 						t.Fatalf("rewrite SKILL.md: %v", err)
 					}
 				},
@@ -204,7 +204,7 @@ func TestAccSkillResource_addFile(t *testing.T) {
 			{Config: skillResourceConfig("s", title, dir, "")},
 			{
 				PreConfig: func() {
-					if err := os.WriteFile(filepath.Join(dir, "extra.md"), []byte("# Extra"), 0o644); err != nil {
+					if err := os.WriteFile(filepath.Join(dir, "extra.md"), []byte("# Extra"), 0o600); err != nil {
 						t.Fatalf("write extra.md: %v", err)
 					}
 				},
@@ -281,7 +281,7 @@ func TestAccSkillResource_destroyCascade(t *testing.T) {
 			{Config: skillResourceConfig("s", title, dir, "")},
 			{
 				PreConfig: func() {
-					if err := os.WriteFile(filepath.Join(dir, "SKILL.md"), []byte("v2"), 0o644); err != nil {
+					if err := os.WriteFile(filepath.Join(dir, "SKILL.md"), []byte("v2"), 0o600); err != nil {
 						t.Fatalf("rewrite SKILL.md: %v", err)
 					}
 				},
@@ -289,7 +289,7 @@ func TestAccSkillResource_destroyCascade(t *testing.T) {
 			},
 			{
 				PreConfig: func() {
-					if err := os.WriteFile(filepath.Join(dir, "SKILL.md"), []byte("v3"), 0o644); err != nil {
+					if err := os.WriteFile(filepath.Join(dir, "SKILL.md"), []byte("v3"), 0o600); err != nil {
 						t.Fatalf("rewrite SKILL.md: %v", err)
 					}
 				},

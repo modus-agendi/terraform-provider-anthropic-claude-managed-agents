@@ -86,6 +86,8 @@ output "agent_id" {
 }
 ```
 
+> **Don't rename `claude-managed-agents` to something shorter.** The local name in `required_providers` is the resource-type prefix for every resource and data source (`claude-managed-agents_agent`, `claude-managed-agents_vault`, …). If you want a shorter alias you must add `provider = <alias>` to every resource block — which is noisier than keeping the literal name.
+
 ```sh
 export ANTHROPIC_API_KEY="sk-ant-..."
 terraform init

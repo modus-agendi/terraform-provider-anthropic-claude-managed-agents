@@ -53,7 +53,7 @@ func multiagentMemberObjectAttrTypes() map[string]attr.Type {
 // Empty input → empty list (not null) so the value is stable across plan,
 // apply, and refresh. The attribute is Computed, so users who never set it
 // will see an empty list in state.
-func mcpServersListFromAPI(ctx context.Context, servers []client.McpServer) (types.List, diag.Diagnostics) {
+func mcpServersListFromAPI(_ context.Context, servers []client.McpServer) (types.List, diag.Diagnostics) {
 	objType := types.ObjectType{AttrTypes: mcpServerObjectAttrTypes()}
 	var diags diag.Diagnostics
 	items := make([]attr.Value, 0, len(servers))
@@ -98,7 +98,7 @@ func mcpServersListToAPI(ctx context.Context, l types.List) ([]client.McpServer,
 }
 
 // skillsListFromAPI mirrors mcpServersListFromAPI for the `skills` field.
-func skillsListFromAPI(ctx context.Context, skills []client.AgentSkillRef) (types.List, diag.Diagnostics) {
+func skillsListFromAPI(_ context.Context, skills []client.AgentSkillRef) (types.List, diag.Diagnostics) {
 	objType := types.ObjectType{AttrTypes: skillObjectAttrTypes()}
 	var diags diag.Diagnostics
 	items := make([]attr.Value, 0, len(skills))
@@ -151,7 +151,7 @@ func skillsListToAPI(ctx context.Context, l types.List) ([]client.AgentSkillRef,
 // The API normalizes `{type: "self"}` entries to `{type: "agent", id: <parent>}`
 // on response; we detect that pattern using parentID and rewrite it back to
 // the user-input shape so state matches the HCL config.
-func multiagentFromAPI(ctx context.Context, m *client.Multiagent, parentID string) (types.Object, diag.Diagnostics) {
+func multiagentFromAPI(_ context.Context, m *client.Multiagent, parentID string) (types.Object, diag.Diagnostics) {
 	if m == nil {
 		return types.ObjectNull(multiagentObjectAttrTypes()), nil
 	}

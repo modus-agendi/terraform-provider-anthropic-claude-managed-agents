@@ -34,7 +34,7 @@ func TestScenarios(t *testing.T) {
 		t.Skip("set TF_ACC_SCENARIOS=1 to run live scenario tests")
 	}
 
-	scns, err := LoadDir(filepath.Join("scenarios"))
+	scns, err := LoadDir("scenarios")
 	if err != nil {
 		t.Fatalf("scenarios: load: %v", err)
 	}
@@ -496,7 +496,7 @@ func TestExtractMemoryStoreResources_None(t *testing.T) {
 
 func writeFile(t *testing.T, path, content string) {
 	t.Helper()
-	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
 		t.Fatal(err)
 	}
 }

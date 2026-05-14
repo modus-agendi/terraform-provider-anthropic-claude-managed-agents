@@ -1,3 +1,5 @@
+version: "2"
+
 run:
   timeout: 5m
   tests: true
@@ -10,7 +12,6 @@ linters:
     - errorlint
     - gocritic
     - gosec
-    - gosimple
     - govet
     - ineffassign
     - misspell

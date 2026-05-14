@@ -79,7 +79,7 @@ func walkSkillDir(dir string) ([]client.SkillFile, error) {
 			return fmt.Errorf("rel %q: %w", path, err)
 		}
 		rel = filepath.ToSlash(rel)
-		b, err := os.ReadFile(path)
+		b, err := os.ReadFile(path) //nolint:gosec
 		if err != nil {
 			return fmt.Errorf("read %q: %w", path, err)
 		}
@@ -113,7 +113,7 @@ func canonicalSkillHash(files []client.SkillFile, rotation int64) string {
 		h.Write(f.Content)
 		h.Write([]byte{0})
 	}
-	fmt.Fprintf(h, "|rotation:%d", rotation)
+	_, _ = fmt.Fprintf(h, "|rotation:%d", rotation)
 	return hex.EncodeToString(h.Sum(nil))
 }
 

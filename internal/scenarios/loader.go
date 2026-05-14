@@ -74,7 +74,7 @@ func (s *Scenario) SourcePath() string { return s.sourcePath }
 // scenario whose checks have been pre-built (so a malformed check fails
 // the whole scenario load, not the test runtime).
 func Load(path string) (*Scenario, error) {
-	raw, err := os.ReadFile(path)
+	raw, err := os.ReadFile(path) //nolint:gosec
 	if err != nil {
 		return nil, fmt.Errorf("scenarios.Load %s: %w", path, err)
 	}

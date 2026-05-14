@@ -54,7 +54,7 @@ func TestDo_SendsHeaders(t *testing.T) {
 }
 
 func TestDo_ReturnsAPIError(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("request-id", "req_xyz")
 		w.WriteHeader(http.StatusNotFound)
 		_, _ = w.Write([]byte(`{"type":"error","error":{"type":"not_found_error","message":"missing"}}`))
@@ -69,8 +69,8 @@ func TestDo_ReturnsAPIError(t *testing.T) {
 	if !IsNotFound(err) {
 		t.Errorf("expected IsNotFound, got %v", err)
 	}
-	apiErr, ok := err.(*APIError)
-	if !ok {
+	var apiErr *APIError
+	if !errors.As(err, &apiErr) {
 		t.Fatalf("expected *APIError, got %T", err)
 	}
 	if apiErr.RequestID != "req_xyz" {
@@ -80,7 +80,7 @@ func TestDo_ReturnsAPIError(t *testing.T) {
 
 func TestDo_RetriesOn5xx(t *testing.T) {
 	var calls int32
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		n := atomic.AddInt32(&calls, 1)
 		if n < 3 {
 			w.WriteHeader(http.StatusInternalServerError)
@@ -103,7 +103,7 @@ func TestDo_RetriesOn5xx(t *testing.T) {
 
 func TestDo_DoesNotRetryOn400(t *testing.T) {
 	var calls int32
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		atomic.AddInt32(&calls, 1)
 		w.WriteHeader(http.StatusBadRequest)
 		_, _ = w.Write([]byte(`{"type":"error","error":{"type":"invalid_request_error","message":"bad"}}`))
