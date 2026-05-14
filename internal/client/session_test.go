@@ -294,11 +294,17 @@ func TestListSessionEvents_NoParams(t *testing.T) {
 	}
 }
 
-func TestListSessionEvents_AfterAndTypes(t *testing.T) {
+func TestListSessionEvents_CreatedAfterAndTypes(t *testing.T) {
+	// CreatedAfter is encoded as created_at[gt]=<RFC3339Nano>; the
+	// upstream events endpoint does NOT support an id-based cursor.
+	want := time.Date(2026, 5, 14, 10, 0, 5, 0, time.UTC)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		q := r.URL.Query()
-		if got := q.Get("after"); got != "evt_05" {
-			t.Errorf("after = %q", got)
+		if got := q.Get("created_at[gt]"); got != want.Format(time.RFC3339Nano) {
+			t.Errorf("created_at[gt] = %q, want %q", got, want.Format(time.RFC3339Nano))
+		}
+		if got := q.Get("limit"); got != "50" {
+			t.Errorf("limit = %q, want 50", got)
 		}
 		types := q["types[]"]
 		if len(types) != 2 || types[0] != "agent.message" || types[1] != "session.status_idle" {
@@ -311,8 +317,9 @@ func TestListSessionEvents_AfterAndTypes(t *testing.T) {
 
 	c := newTestClient(t, srv)
 	page, err := c.ListSessionEvents(context.Background(), "sesn_01XYZ", ListSessionEventsParams{
-		After: "evt_05",
-		Types: []string{"agent.message", "session.status_idle"},
+		CreatedAfter: want,
+		Types:        []string{"agent.message", "session.status_idle"},
+		Limit:        50,
 	})
 	if err != nil {
 		t.Fatalf("ListSessionEvents: %v", err)

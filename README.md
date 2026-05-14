@@ -153,6 +153,12 @@ go mod download
 make test            # unit tests
 make testacc         # acceptance tests, httptest fixture (free)
 make testacc-live    # acceptance tests against api.anthropic.com (requires ANTHROPIC_API_KEY)
+
+# Behavioral scenarios (L5) — opens real sessions and grades them via an
+# LLM-as-judge call. Bills real inference tokens; see
+# internal/scenarios/README.md for cost notes.
+TF_ACC_SCENARIOS=1 go test ./internal/scenarios/... -count=1 -timeout 10m -v
+
 make lint
 make docs            # regenerate docs/ via tfplugindocs
 make coverage-html   # full coverage profile + HTML report
