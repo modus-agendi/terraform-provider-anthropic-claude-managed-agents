@@ -52,16 +52,28 @@ Schema: {"verdict": "PASS" | "FAIL", "reason": <one-line string>}`
 // scenarioResult is one row of the cost-summary table printed after the
 // full TestScenarios run completes.
 type scenarioResult struct {
-	Name          string
-	Pass          bool
-	DurationSec   int
-	Model         string // agent model (looked up from agent state)
-	SessionIn     int
-	SessionOut    int
-	JudgeModel    string
-	JudgeIn       int
-	JudgeOut      int
-	FailureReason string // populated when Pass == false; one-line summary
+	Name        string
+	Pass        bool
+	DurationSec int
+	Model       string // agent model (looked up from agent state)
+	// SessionInput / CacheCreate / CacheRead are the three input-side
+	// token buckets from SessionUsage. They are priced separately so the
+	// cost estimate reflects the 90% discount on cache reads.
+	SessionInput       int
+	SessionCacheCreate int
+	SessionCacheRead   int
+	SessionOutput      int
+	JudgeModel         string
+	JudgeIn            int
+	JudgeOut           int
+	FailureReason      string // populated when Pass == false; one-line summary
+}
+
+// sessionInTotal returns the displayed input total (regular + cache
+// create + cache read). Cost estimation prices each bucket separately
+// via estimateUSD; this helper is only for the CI summary line.
+func (r scenarioResult) sessionInTotal() int {
+	return r.SessionInput + r.SessionCacheCreate + r.SessionCacheRead
 }
 
 // aggregator accumulates per-scenario results across the t.Run subtests.
@@ -164,8 +176,10 @@ func runScenario(t *testing.T, scn *Scenario, agg *aggregator) {
 					// Capture usage even on poll failure (final
 					// GetSession may report partial usage).
 					if final, gerr := c.GetSession(context.Background(), sess.ID); gerr == nil && final.Usage != nil {
-						result.SessionIn = final.Usage.InputTokens + final.Usage.CacheCreationInputTokens + final.Usage.CacheReadInputTokens
-						result.SessionOut = final.Usage.OutputTokens
+						result.SessionInput = final.Usage.InputTokens
+						result.SessionCacheCreate = final.Usage.CacheCreationInputTokens
+						result.SessionCacheRead = final.Usage.CacheReadInputTokens
+						result.SessionOutput = final.Usage.OutputTokens
 					}
 					if pollErr != nil {
 						result.FailureReason = "session loop: " + pollErr.Error()
@@ -409,20 +423,27 @@ func printSummary(w *strings.Builder, results []scenarioResult) {
 			status = "PASS"
 			passes++
 		}
+		sessIn := r.sessionInTotal()
 		fmt.Fprintf(w, "%-40s %s    %3ds    in=%-6d out=%-6d  judge: in=%-4d out=%-4d\n",
 			r.Name, status, r.DurationSec,
-			r.SessionIn, r.SessionOut,
+			sessIn, r.SessionOutput,
 			r.JudgeIn, r.JudgeOut,
 		)
+		// Surface the cache breakdown when caching contributed — makes
+		// the cost line's discount visible at a glance.
+		if r.SessionCacheCreate > 0 || r.SessionCacheRead > 0 {
+			fmt.Fprintf(w, "  cache: write=%d read=%d (read priced at %.0f%% of input)\n",
+				r.SessionCacheCreate, r.SessionCacheRead, cacheReadMultiplier*100)
+		}
 		if !r.Pass && r.FailureReason != "" {
 			fmt.Fprintf(w, "  reason: %s\n", r.FailureReason)
 		}
-		totalSessIn += r.SessionIn
-		totalSessOut += r.SessionOut
+		totalSessIn += sessIn
+		totalSessOut += r.SessionOutput
 		totalJudgeIn += r.JudgeIn
 		totalJudgeOut += r.JudgeOut
-		totalCost += estimateUSD(r.Model, r.SessionIn, r.SessionOut)
-		totalCost += estimateUSD(r.JudgeModel, r.JudgeIn, r.JudgeOut)
+		totalCost += estimateUSD(r.Model, r.SessionInput, r.SessionCacheCreate, r.SessionCacheRead, r.SessionOutput)
+		totalCost += estimateUSD(r.JudgeModel, r.JudgeIn, 0, 0, r.JudgeOut)
 		if r.Model != "" && !isPriced(r.Model) {
 			unpriced = append(unpriced, r.Model)
 		}

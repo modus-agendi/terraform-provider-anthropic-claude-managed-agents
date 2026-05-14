@@ -298,18 +298,28 @@ func TestPricing_knownAndUnknown(t *testing.T) {
 	if os.Getenv("TF_ACC") == "" {
 		t.Skip("set TF_ACC=1 to run scenario harness unit tests")
 	}
-	// 1M in + 1M out on opus = $15 + $75 = $90
-	got := estimateUSD("claude-opus-4-7", 1_000_000, 1_000_000)
+	// 1M regular in + 1M out on opus = $15 + $75 = $90
+	got := estimateUSD("claude-opus-4-7", 1_000_000, 0, 0, 1_000_000)
 	if got != 90.0 {
 		t.Errorf("opus cost = %f want 90", got)
 	}
 	// Sonnet: $3 + $15 = $18
-	got = estimateUSD("claude-sonnet-4-6", 1_000_000, 1_000_000)
+	got = estimateUSD("claude-sonnet-4-6", 1_000_000, 0, 0, 1_000_000)
 	if got != 18.0 {
 		t.Errorf("sonnet cost = %f want 18", got)
 	}
+	// Cache create on opus is 1.25× input: 1M tokens → $15 × 1.25 = $18.75
+	got = estimateUSD("claude-opus-4-7", 0, 1_000_000, 0, 0)
+	if got != 18.75 {
+		t.Errorf("opus cache-create cost = %f want 18.75", got)
+	}
+	// Cache read on opus is 0.10× input: 1M tokens → $15 × 0.10 = $1.50
+	got = estimateUSD("claude-opus-4-7", 0, 0, 1_000_000, 0)
+	if got != 1.5 {
+		t.Errorf("opus cache-read cost = %f want 1.50", got)
+	}
 	// Unknown model: 0, no panic
-	got = estimateUSD("not-a-model", 1_000_000, 1_000_000)
+	got = estimateUSD("not-a-model", 1_000_000, 0, 0, 1_000_000)
 	if got != 0 {
 		t.Errorf("unknown cost = %f want 0", got)
 	}
@@ -328,8 +338,8 @@ func TestPrintSummary_format(t *testing.T) {
 		t.Skip("set TF_ACC=1 to run scenario harness unit tests")
 	}
 	results := []scenarioResult{
-		{Name: "alpha", Pass: true, DurationSec: 30, Model: "claude-opus-4-7", SessionIn: 1000, SessionOut: 500, JudgeModel: "claude-sonnet-4-6", JudgeIn: 50, JudgeOut: 20},
-		{Name: "beta", Pass: false, DurationSec: 90, Model: "claude-opus-4-7", SessionIn: 2000, SessionOut: 800, JudgeModel: "claude-sonnet-4-6", JudgeIn: 60, JudgeOut: 25, FailureReason: "trajectory check: required event \"agent.tool_use\" not seen"},
+		{Name: "alpha", Pass: true, DurationSec: 30, Model: "claude-opus-4-7", SessionInput: 1000, SessionOutput: 500, JudgeModel: "claude-sonnet-4-6", JudgeIn: 50, JudgeOut: 20},
+		{Name: "beta", Pass: false, DurationSec: 90, Model: "claude-opus-4-7", SessionInput: 500, SessionCacheCreate: 200, SessionCacheRead: 1300, SessionOutput: 800, JudgeModel: "claude-sonnet-4-6", JudgeIn: 60, JudgeOut: 25, FailureReason: "trajectory check: required event \"agent.tool_use\" not seen"},
 	}
 	var sb strings.Builder
 	printSummary(&sb, results)
@@ -342,6 +352,8 @@ func TestPrintSummary_format(t *testing.T) {
 		"Cost estimate",
 		"anthropic.com/pricing",
 		"reason: trajectory check",
+		// beta has cache activity → the cache breakdown line is printed
+		"cache: write=200 read=1300",
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("summary missing %q\n%s", want, out)
@@ -354,7 +366,7 @@ func TestPrintSummary_flagsUnpriced(t *testing.T) {
 		t.Skip("set TF_ACC=1 to run scenario harness unit tests")
 	}
 	results := []scenarioResult{
-		{Name: "x", Pass: true, Model: "unreleased-model", SessionIn: 10, SessionOut: 5, JudgeModel: "claude-sonnet-4-6"},
+		{Name: "x", Pass: true, Model: "unreleased-model", SessionInput: 10, SessionOutput: 5, JudgeModel: "claude-sonnet-4-6"},
 	}
 	var sb strings.Builder
 	printSummary(&sb, results)
