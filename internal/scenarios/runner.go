@@ -254,9 +254,9 @@ func runScenario(t *testing.T, scn *Scenario, agg *aggregator) {
 // approval) continue polling — the harness assumes auto-allow tools.
 func pollUntilTerminal(ctx context.Context, c *client.Client, sessionID string) ([]client.SessionEvent, error) {
 	var (
-		trajectory   []client.SessionEvent
-		seen         = map[string]bool{}
-		lastTS       time.Time
+		trajectory []client.SessionEvent
+		seen       = map[string]bool{}
+		lastTS     time.Time
 	)
 	ticker := time.NewTicker(pollInterval)
 	defer ticker.Stop()
