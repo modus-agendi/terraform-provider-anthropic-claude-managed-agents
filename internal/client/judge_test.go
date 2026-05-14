@@ -209,6 +209,56 @@ func TestJudgeVerdict_ValidatesUserPrompt(t *testing.T) {
 	}
 }
 
+func TestJudgeVerdict_TolerantOfProsePrefix(t *testing.T) {
+	// Real-world failure mode: even when the judge prompt says
+	// "JSON only — no prose", models occasionally lead with a few
+	// sentences of reasoning before emitting the {...} verdict. The
+	// parser must extract the first balanced JSON object from the
+	// body rather than treating the entire text as JSON.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"content":[{"type":"text","text":"Looking at the transcript, I can see the agent invoked the bash tool and produced the correct answer.\n\n{\"verdict\":\"PASS\",\"reason\":\"agent executed code via bash and returned 55\"}"}]}`))
+	}))
+	defer srv.Close()
+
+	c := newTestClient(t, srv)
+	res, err := c.JudgeVerdict(context.Background(), JudgeRequest{UserPrompt: "x"})
+	if err != nil {
+		t.Fatalf("JudgeVerdict: %v", err)
+	}
+	if res.Verdict != "PASS" {
+		t.Errorf("Verdict = %q want PASS", res.Verdict)
+	}
+	if !strings.Contains(res.Reason, "bash") {
+		t.Errorf("Reason should preserve content from JSON, got %q", res.Reason)
+	}
+}
+
+func TestExtractFirstJSONObject(t *testing.T) {
+	cases := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{name: "pure JSON", in: `{"a":1}`, want: `{"a":1}`},
+		{name: "with prose prefix", in: `Some prose. {"v":"PASS","r":"ok"}`, want: `{"v":"PASS","r":"ok"}`},
+		{name: "nested objects", in: `prefix {"outer":{"inner":42}} trailer`, want: `{"outer":{"inner":42}}`},
+		{name: "brace in string", in: `text {"reason":"contains } char"}`, want: `{"reason":"contains } char"}`},
+		{name: "escaped quote in string", in: `prose {"k":"says \"hi\" }"}`, want: `{"k":"says \"hi\" }"}`},
+		{name: "no JSON", in: `just prose, no braces`, want: ``},
+		{name: "unbalanced", in: `{"a":1`, want: ``},
+		{name: "empty input", in: ``, want: ``},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := extractFirstJSONObject(tc.in)
+			if got != tc.want {
+				t.Errorf("got %q\nwant %q", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestJudgeVerdict_ConcatenatesMultipleTextBlocks(t *testing.T) {
 	// Defensive: if the judge model emits multiple text blocks we still
 	// reassemble the JSON before parsing it.
