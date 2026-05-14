@@ -16,6 +16,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -138,6 +139,7 @@ func runScenario(t *testing.T, scn *Scenario, agg *aggregator) {
 					}
 					result.Model = agentModel
 					envID, _ := extractEnvironment(s) // optional
+					sessionResources := extractMemoryStoreResources(s)
 
 					ctx, cancel := context.WithTimeout(context.Background(), scn.Timeout)
 					defer cancel()
@@ -145,6 +147,7 @@ func runScenario(t *testing.T, scn *Scenario, agg *aggregator) {
 					sess, err := c.CreateSession(ctx, client.SessionCreateRequest{
 						AgentID:       agentID,
 						EnvironmentID: envID,
+						Resources:     sessionResources,
 						Title:         "tf-acc-test-scenarios-" + scn.Name,
 					})
 					if err != nil {
@@ -392,6 +395,41 @@ func extractEnvironment(s *terraform.State) (string, error) {
 	}
 	id := rs.Primary.Attributes["id"]
 	return id, nil
+}
+
+// extractMemoryStoreResources walks post-apply state for every
+// claude-managed-agents_memory_store.* resource and returns one
+// SessionResource per store, in deterministic (sorted) order. The
+// scenario harness attaches every declared memory store to the session
+// — there is no opt-in flag because memory stores are always meant to
+// be available to the agent that declared them.
+//
+// Returns nil (not an empty slice) when no memory stores are declared,
+// so the JSON body omits the field entirely via omitempty.
+func extractMemoryStoreResources(s *terraform.State) []client.SessionResource {
+	const prefix = "claude-managed-agents_memory_store."
+	var addrs []string
+	for addr := range s.RootModule().Resources {
+		if strings.HasPrefix(addr, prefix) {
+			addrs = append(addrs, addr)
+		}
+	}
+	if len(addrs) == 0 {
+		return nil
+	}
+	sort.Strings(addrs)
+	out := make([]client.SessionResource, 0, len(addrs))
+	for _, addr := range addrs {
+		id := s.RootModule().Resources[addr].Primary.Attributes["id"]
+		if id == "" {
+			continue
+		}
+		out = append(out, client.SessionResource{
+			Type:          "memory_store",
+			MemoryStoreID: id,
+		})
+	}
+	return out
 }
 
 // protoFactories builds the provider factory map for the scenarios

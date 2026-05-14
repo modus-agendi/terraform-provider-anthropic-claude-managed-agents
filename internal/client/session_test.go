@@ -100,6 +100,65 @@ func TestCreateSession_WithEnvironmentAndVaults(t *testing.T) {
 	}
 }
 
+func TestCreateSession_WithResources(t *testing.T) {
+	// Memory stores (and other session-scoped resources) must be
+	// attached at create time; the upstream API does not support
+	// attach-on-the-fly. Verifies the JSON shape and the omitempty
+	// behavior on the unused *ID fields.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		raw, ok := body["resources"].([]any)
+		if !ok || len(raw) != 2 {
+			t.Fatalf("resources = %v", body["resources"])
+		}
+		first := raw[0].(map[string]any)
+		if first["type"] != "memory_store" {
+			t.Errorf("resources[0].type = %v", first["type"])
+		}
+		if first["memory_store_id"] != "memstore_01ABC" {
+			t.Errorf("resources[0].memory_store_id = %v", first["memory_store_id"])
+		}
+		if first["instructions"] != "prefer notes from this store" {
+			t.Errorf("resources[0].instructions = %v", first["instructions"])
+		}
+		if _, present := first["file_id"]; present {
+			t.Errorf("resources[0] should omit file_id, got %v", first)
+		}
+		second := raw[1].(map[string]any)
+		if second["type"] != "memory_store" || second["memory_store_id"] != "memstore_02DEF" {
+			t.Errorf("resources[1] = %v", second)
+		}
+		if _, present := second["instructions"]; present {
+			t.Errorf("resources[1] should omit instructions when empty, got %v", second)
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{
+			"id":"sesn_01XYZ","type":"session","agent_id":"agent_01ABC",
+			"environment_id":"env_01ENV","status":"idle",
+			"created_at":"2026-05-14T10:00:00Z",
+			"updated_at":"2026-05-14T10:00:00Z",
+			"archived_at":null
+		}`))
+	}))
+	defer srv.Close()
+
+	c := newTestClient(t, srv)
+	_, err := c.CreateSession(context.Background(), SessionCreateRequest{
+		AgentID:       "agent_01ABC",
+		EnvironmentID: "env_01ENV",
+		Resources: []SessionResource{
+			{Type: "memory_store", MemoryStoreID: "memstore_01ABC", Instructions: "prefer notes from this store"},
+			{Type: "memory_store", MemoryStoreID: "memstore_02DEF"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("CreateSession: %v", err)
+	}
+}
+
 func TestCreateSession_ValidatesAgentID(t *testing.T) {
 	c, err := New(Config{APIKey: "sk-test"})
 	if err != nil {

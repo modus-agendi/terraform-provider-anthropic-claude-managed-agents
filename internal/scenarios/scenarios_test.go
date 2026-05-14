@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/hashicorp/terraform-plugin-testing/terraform"
+
 	"github.com/andasv/terraform-provider-claude-managed-agents/internal/client"
 )
 
@@ -392,6 +394,68 @@ func TestBuildJudgeUserPrompt_truncatesTranscript(t *testing.T) {
 	}
 	if !strings.Contains(prompt, "TRANSCRIPT (last 20 events") {
 		t.Error("prompt should declare truncation to 20")
+	}
+}
+
+// --- memory store auto-attach ------------------------------------------
+
+func TestExtractMemoryStoreResources(t *testing.T) {
+	if os.Getenv("TF_ACC") == "" {
+		t.Skip("set TF_ACC=1 to run scenario harness unit tests")
+	}
+	state := &terraform.State{
+		Modules: []*terraform.ModuleState{{
+			Path: []string{"root"},
+			Resources: map[string]*terraform.ResourceState{
+				"claude-managed-agents_memory_store.beta": {
+					Type:    "claude-managed-agents_memory_store",
+					Primary: &terraform.InstanceState{ID: "memstore_02BETA", Attributes: map[string]string{"id": "memstore_02BETA"}},
+				},
+				"claude-managed-agents_memory_store.alpha": {
+					Type:    "claude-managed-agents_memory_store",
+					Primary: &terraform.InstanceState{ID: "memstore_01ALPHA", Attributes: map[string]string{"id": "memstore_01ALPHA"}},
+				},
+				"claude-managed-agents_agent.target": {
+					Type:    "claude-managed-agents_agent",
+					Primary: &terraform.InstanceState{ID: "agent_01ABC", Attributes: map[string]string{"id": "agent_01ABC"}},
+				},
+			},
+		}},
+	}
+	got := extractMemoryStoreResources(state)
+	if len(got) != 2 {
+		t.Fatalf("got %d resources, want 2", len(got))
+	}
+	// Sorted address order means alpha precedes beta.
+	if got[0].Type != "memory_store" || got[0].MemoryStoreID != "memstore_01ALPHA" {
+		t.Errorf("got[0] = %+v, want type=memory_store id=memstore_01ALPHA", got[0])
+	}
+	if got[1].MemoryStoreID != "memstore_02BETA" {
+		t.Errorf("got[1] = %+v, want id=memstore_02BETA", got[1])
+	}
+}
+
+func TestExtractMemoryStoreResources_None(t *testing.T) {
+	// When no memory_store resources are declared the harness must
+	// return nil (not an empty slice) so JSON serialization omits the
+	// resources field via omitempty.
+	if os.Getenv("TF_ACC") == "" {
+		t.Skip("set TF_ACC=1 to run scenario harness unit tests")
+	}
+	state := &terraform.State{
+		Modules: []*terraform.ModuleState{{
+			Path: []string{"root"},
+			Resources: map[string]*terraform.ResourceState{
+				"claude-managed-agents_agent.target": {
+					Type:    "claude-managed-agents_agent",
+					Primary: &terraform.InstanceState{ID: "agent_01ABC", Attributes: map[string]string{"id": "agent_01ABC"}},
+				},
+			},
+		}},
+	}
+	got := extractMemoryStoreResources(state)
+	if got != nil {
+		t.Errorf("got %+v, want nil", got)
 	}
 }
 
