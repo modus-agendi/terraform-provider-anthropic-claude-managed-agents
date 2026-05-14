@@ -197,11 +197,14 @@ func runScenario(t *testing.T, scn *Scenario, agg *aggregator) {
 						result.FailureReason = "judge call: " + err.Error()
 						return fmt.Errorf("judge call: %w", err)
 					}
-					// Approximate judge usage: the JudgeVerdict client
-					// doesn't surface raw usage today, so log via the
-					// trajectory length. v2 plan note: surface Usage
-					// in JudgeResult.
-					_ = verdict // usage capture deferred until client.JudgeVerdict exposes it
+					// Capture judge token usage from the Messages API
+					// response. JudgeResult.Usage is nil only if the
+					// upstream API ever omits the usage block (extremely
+					// unlikely upstream regression).
+					if verdict.Usage != nil {
+						result.JudgeIn = verdict.Usage.InputTokens
+						result.JudgeOut = verdict.Usage.OutputTokens
+					}
 
 					if len(checkErrs) > 0 {
 						result.FailureReason = "trajectory check: " + strings.Join(checkErrs, "; ")
