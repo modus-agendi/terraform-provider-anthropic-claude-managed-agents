@@ -74,6 +74,7 @@ func (c *Client) JudgeVerdict(ctx context.Context, req JudgeRequest) (*JudgeResu
 
 	var resp struct {
 		Content []contentBlock `json:"content"`
+		Usage   *JudgeUsage    `json:"usage,omitempty"`
 	}
 	if err := c.do(ctx, http.MethodPost, "/v1/messages", body, &resp); err != nil {
 		return nil, err
@@ -93,5 +94,6 @@ func (c *Client) JudgeVerdict(ctx context.Context, req JudgeRequest) (*JudgeResu
 	if result.Verdict != "PASS" && result.Verdict != "FAIL" {
 		return nil, fmt.Errorf("%w: verdict must be PASS or FAIL, got %q (raw: %s)", ErrJudgeMalformed, result.Verdict, raw)
 	}
+	result.Usage = resp.Usage
 	return &result, nil
 }

@@ -230,3 +230,50 @@ func TestJudgeVerdict_ConcatenatesMultipleTextBlocks(t *testing.T) {
 		t.Errorf("Verdict = %q", res.Verdict)
 	}
 }
+
+func TestJudgeVerdict_PopulatesUsage(t *testing.T) {
+	// The Messages API response carries a usage block; JudgeResult must
+	// surface it so L5's cost reporter can print real numbers.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{
+			"content":[{"type":"text","text":"{\"verdict\":\"PASS\",\"reason\":\"ok\"}"}],
+			"usage":{"input_tokens":482,"output_tokens":34}
+		}`))
+	}))
+	defer srv.Close()
+
+	c := newTestClient(t, srv)
+	res, err := c.JudgeVerdict(context.Background(), JudgeRequest{UserPrompt: "x"})
+	if err != nil {
+		t.Fatalf("JudgeVerdict: %v", err)
+	}
+	if res.Usage == nil {
+		t.Fatalf("Usage is nil; expected populated")
+	}
+	if res.Usage.InputTokens != 482 || res.Usage.OutputTokens != 34 {
+		t.Errorf("Usage = %+v; want {482, 34}", *res.Usage)
+	}
+}
+
+func TestJudgeVerdict_MissingUsageStaysNil(t *testing.T) {
+	// If the upstream API ever omits the usage block, JudgeResult.Usage
+	// must be nil — never silently zero — so callers can distinguish
+	// "no data" from "zero tokens used."
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{
+			"content":[{"type":"text","text":"{\"verdict\":\"PASS\",\"reason\":\"ok\"}"}]
+		}`))
+	}))
+	defer srv.Close()
+
+	c := newTestClient(t, srv)
+	res, err := c.JudgeVerdict(context.Background(), JudgeRequest{UserPrompt: "x"})
+	if err != nil {
+		t.Fatalf("JudgeVerdict: %v", err)
+	}
+	if res.Usage != nil {
+		t.Errorf("Usage = %+v; want nil", *res.Usage)
+	}
+}

@@ -617,9 +617,25 @@ type JudgeRequest struct {
 }
 
 // JudgeResult is the structured JSON the judge model is expected to
-// produce as its only content block. Verdict must be exactly "PASS" or
-// "FAIL"; anything else is treated as a malformed response.
+// produce as its only content block, plus the Messages API's billing
+// usage block from the same response. Verdict must be exactly "PASS"
+// or "FAIL"; anything else is treated as a malformed response.
+//
+// Usage is populated from the Messages API response envelope, NOT from
+// the judge model's own content. It is nil if the API did not return
+// a usage block (an extremely unlikely upstream regression — kept as a
+// pointer so callers can detect that case).
 type JudgeResult struct {
-	Verdict string `json:"verdict"`
-	Reason  string `json:"reason"`
+	Verdict string      `json:"verdict"`
+	Reason  string      `json:"reason"`
+	Usage   *JudgeUsage `json:"-"`
+}
+
+// JudgeUsage is the input/output token count reported by the Messages
+// API for a JudgeVerdict call. Fields mirror the standard Messages API
+// usage shape; cache-related fields are omitted because the judge
+// requests are short, non-cached, and one-shot.
+type JudgeUsage struct {
+	InputTokens  int `json:"input_tokens"`
+	OutputTokens int `json:"output_tokens"`
 }
