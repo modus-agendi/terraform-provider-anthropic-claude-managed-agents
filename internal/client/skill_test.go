@@ -85,11 +85,12 @@ func TestCreateSkill_HappyPath(t *testing.T) {
 		if fields["display_title"] != "report-builder" {
 			t.Errorf("display_title = %q", fields["display_title"])
 		}
-		if !strings.Contains(string(files["SKILL.md"]), "frontmatter") {
-			t.Errorf("SKILL.md content = %q", files["SKILL.md"])
+		// Files are wrapped in a top-level folder derived from SKILL.md name:.
+		if !strings.Contains(string(files["report-builder/SKILL.md"]), "frontmatter") {
+			t.Errorf("report-builder/SKILL.md content = %q", files["report-builder/SKILL.md"])
 		}
-		if string(files["scripts/lint.py"]) != "print('lint')" {
-			t.Errorf("scripts/lint.py = %q", files["scripts/lint.py"])
+		if string(files["report-builder/scripts/lint.py"]) != "print('lint')" {
+			t.Errorf("report-builder/scripts/lint.py = %q", files["report-builder/scripts/lint.py"])
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"id":"skill_01ABC","type":"skill","source":"custom","display_title":"report-builder","latest_version":"1747000000","created_at":"2026-05-13T10:00:00Z"}`))
@@ -100,7 +101,7 @@ func TestCreateSkill_HappyPath(t *testing.T) {
 	skill, err := c.CreateSkill(context.Background(), SkillCreateRequest{
 		DisplayTitle: "report-builder",
 		Files: []SkillFile{
-			{Path: "SKILL.md", Content: []byte("---\nfrontmatter\n---\n")},
+			{Path: "SKILL.md", Content: []byte("---\nname: report-builder\n---\nfrontmatter\n")},
 			{Path: "scripts/lint.py", Content: []byte("print('lint')")},
 		},
 	})
@@ -164,7 +165,9 @@ func TestBuildSkillMultipart_Shape(t *testing.T) {
 	if !sawTitle {
 		t.Errorf("display_title field missing")
 	}
-	if saw["SKILL.md"] != "hello" || saw["nested/file.txt"] != "world" {
+	// Paths are wrapped in a top-level folder. SKILL.md has no name: frontmatter
+	// so the fallback "skill" is used.
+	if saw["skill/SKILL.md"] != "hello" || saw["skill/nested/file.txt"] != "world" {
 		t.Errorf("file contents = %+v", saw)
 	}
 }
@@ -204,7 +207,7 @@ func TestBuildSkillMultipart_BinaryContent(t *testing.T) {
 		if err != nil {
 			t.Fatalf("part: %v", err)
 		}
-		if partFilename(part) == "blob.bin" {
+		if partFilename(part) == "skill/blob.bin" {
 			b, _ := io.ReadAll(part)
 			if len(b) != len(big) {
 				t.Fatalf("len = %d, want %d", len(b), len(big))
@@ -652,8 +655,9 @@ func TestCreateSkillVersion_HappyPath(t *testing.T) {
 		if _, ok := fields["display_title"]; ok {
 			t.Errorf("display_title should be absent on version create; got %q", fields["display_title"])
 		}
-		if string(files["SKILL.md"]) != "new content" {
-			t.Errorf("SKILL.md = %q", files["SKILL.md"])
+		// No name: frontmatter → fallback wrapDir "skill".
+		if string(files["skill/SKILL.md"]) != "new content" {
+			t.Errorf("skill/SKILL.md = %q", files["skill/SKILL.md"])
 		}
 		_, _ = w.Write([]byte(`{"type":"skill_version","skill_id":"skill_x","version":"1747000000","created_at":"2026-05-13T10:00:00Z"}`))
 	}))

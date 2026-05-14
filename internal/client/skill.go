@@ -201,15 +201,65 @@ func validateSkillFiles(files []SkillFile) error {
 	return nil
 }
 
+// parseSKILLMDName extracts the `name:` value from the YAML frontmatter of a
+// SKILL.md file. Returns an empty string if the file lacks frontmatter or the
+// name key is absent. Parsing is intentionally minimal: only the first `name:`
+// line inside the opening `---` block is examined.
+func parseSKILLMDName(content []byte) string {
+	s := string(content)
+	if !strings.HasPrefix(s, "---") {
+		return ""
+	}
+	rest := s[3:]
+	// The opening delimiter must be followed by a newline.
+	nl := strings.IndexByte(rest, '\n')
+	if nl < 0 {
+		return ""
+	}
+	rest = rest[nl+1:]
+	end := strings.Index(rest, "---")
+	if end < 0 {
+		return ""
+	}
+	for _, line := range strings.Split(rest[:end], "\n") {
+		line = strings.TrimSpace(line)
+		if !strings.HasPrefix(line, "name:") {
+			continue
+		}
+		v := strings.TrimSpace(strings.TrimPrefix(line, "name:"))
+		if len(v) >= 2 && ((v[0] == '"' && v[len(v)-1] == '"') || (v[0] == '\'' && v[len(v)-1] == '\'')) {
+			v = v[1 : len(v)-1]
+		}
+		return v
+	}
+	return ""
+}
+
 // buildSkillMultipart encodes the multipart body for POST /v1/skills and
 // POST /v1/skills/{id}/versions. If displayTitle is non-empty it is included
 // as a `display_title` form field; otherwise the body is files-only (the
-// shape used by the version-create endpoint). Every file is emitted as a
-// `files[]` part with `filename` set to the POSIX-style relative path.
+// shape used by the version-create endpoint).
+//
+// The live API requires every file to be inside exactly one top-level folder
+// in the archive ("SKILL.md file must be exactly in the top-level folder").
+// The wrapper directory name is taken from the `name:` field in SKILL.md
+// frontmatter; when that field is absent the fallback name "skill" is used.
 //
 // The returned contentType already includes the multipart boundary and must
 // be set verbatim on the request's Content-Type header.
 func buildSkillMultipart(displayTitle string, files []SkillFile) ([]byte, string, error) {
+	// Determine the wrapper directory from the SKILL.md frontmatter name.
+	wrapDir := ""
+	for _, f := range files {
+		if f.Path == requiredSkillEntrypoint {
+			wrapDir = parseSKILLMDName(f.Content)
+			break
+		}
+	}
+	if wrapDir == "" {
+		wrapDir = "skill"
+	}
+
 	var buf bytes.Buffer
 	w := multipart.NewWriter(&buf)
 
@@ -220,19 +270,21 @@ func buildSkillMultipart(displayTitle string, files []SkillFile) ([]byte, string
 	}
 
 	for _, f := range files {
-		// Build a part header manually so we can preserve the exact
-		// `filename` (with subdirectories) the server expects. The
-		// stdlib's CreateFormFile escapes path separators differently.
+		// Prefix every path with the wrapper directory so the server sees
+		// e.g. "report-builder/SKILL.md" instead of the flat "SKILL.md".
+		// Build the part header manually to preserve path separators — the
+		// stdlib's CreateFormFile strips directory components.
+		wrapped := wrapDir + "/" + f.Path
 		h := make(textproto.MIMEHeader)
 		h.Set("Content-Disposition",
-			fmt.Sprintf(`form-data; name="files[]"; filename=%q`, f.Path))
+			fmt.Sprintf(`form-data; name="files[]"; filename=%q`, wrapped))
 		h.Set("Content-Type", "application/octet-stream")
 		part, err := w.CreatePart(h)
 		if err != nil {
-			return nil, "", fmt.Errorf("create part %q: %w", f.Path, err)
+			return nil, "", fmt.Errorf("create part %q: %w", wrapped, err)
 		}
 		if _, err := part.Write(f.Content); err != nil {
-			return nil, "", fmt.Errorf("write part %q: %w", f.Path, err)
+			return nil, "", fmt.Errorf("write part %q: %w", wrapped, err)
 		}
 	}
 

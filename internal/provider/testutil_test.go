@@ -611,12 +611,13 @@ func (f *fakeAPI) skillCreate(w http.ResponseWriter, r *http.Request) {
 	}
 	var hasEntrypoint bool
 	for _, fh := range files {
-		if fh.Filename == "SKILL.md" {
+		// Live API requires SKILL.md inside exactly one top-level folder.
+		if strings.Count(fh.Filename, "/") == 1 && strings.HasSuffix(fh.Filename, "/SKILL.md") {
 			hasEntrypoint = true
 		}
 	}
 	if !hasEntrypoint {
-		writeAPIErr(w, http.StatusBadRequest, "invalid_request_error", "SKILL.md is required at the root")
+		writeAPIErr(w, http.StatusBadRequest, "invalid_request_error", "SKILL.md file must be exactly in the top-level folder.")
 		return
 	}
 
@@ -729,12 +730,13 @@ func (f *fakeAPI) skillVersionCreate(w http.ResponseWriter, r *http.Request, ski
 	}
 	var hasEntrypoint bool
 	for _, fh := range files {
-		if fh.Filename == "SKILL.md" {
+		// Live API requires SKILL.md inside exactly one top-level folder.
+		if strings.Count(fh.Filename, "/") == 1 && strings.HasSuffix(fh.Filename, "/SKILL.md") {
 			hasEntrypoint = true
 		}
 	}
 	if !hasEntrypoint {
-		writeAPIErr(w, http.StatusBadRequest, "invalid_request_error", "SKILL.md is required at the root")
+		writeAPIErr(w, http.StatusBadRequest, "invalid_request_error", "SKILL.md file must be exactly in the top-level folder.")
 		return
 	}
 
