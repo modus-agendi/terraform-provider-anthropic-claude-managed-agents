@@ -3,6 +3,7 @@ package provider
 import (
 	"encoding/json"
 	"fmt"
+	"mime"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -611,8 +612,12 @@ func (f *fakeAPI) skillCreate(w http.ResponseWriter, r *http.Request) {
 	}
 	var hasEntrypoint bool
 	for _, fh := range files {
-		// Live API requires SKILL.md inside exactly one top-level folder.
-		if strings.Count(fh.Filename, "/") == 1 && strings.HasSuffix(fh.Filename, "/SKILL.md") {
+		// Go's ParseMultipartForm sets fh.Filename via filepath.Base, stripping
+		// all directory components. Read the raw Content-Disposition to get the
+		// full path including the wrapping folder the provider must send.
+		_, params, _ := mime.ParseMediaType(fh.Header.Get("Content-Disposition"))
+		fullPath := params["filename"]
+		if strings.Count(fullPath, "/") == 1 && strings.HasSuffix(fullPath, "/SKILL.md") {
 			hasEntrypoint = true
 		}
 	}
@@ -730,8 +735,12 @@ func (f *fakeAPI) skillVersionCreate(w http.ResponseWriter, r *http.Request, ski
 	}
 	var hasEntrypoint bool
 	for _, fh := range files {
-		// Live API requires SKILL.md inside exactly one top-level folder.
-		if strings.Count(fh.Filename, "/") == 1 && strings.HasSuffix(fh.Filename, "/SKILL.md") {
+		// Go's ParseMultipartForm sets fh.Filename via filepath.Base, stripping
+		// all directory components. Read the raw Content-Disposition to get the
+		// full path including the wrapping folder the provider must send.
+		_, params, _ := mime.ParseMediaType(fh.Header.Get("Content-Disposition"))
+		fullPath := params["filename"]
+		if strings.Count(fullPath, "/") == 1 && strings.HasSuffix(fullPath, "/SKILL.md") {
 			hasEntrypoint = true
 		}
 	}
