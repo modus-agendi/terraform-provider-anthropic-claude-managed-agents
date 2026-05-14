@@ -6,16 +6,31 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-05-14
+
 ### Added
 - **L5 behavioral test layer**. New `internal/scenarios/` package that
   loads YAML-defined scenarios, provisions agents via Terraform, opens
   real sessions against the Anthropic API, captures event trajectories,
   and grades final answers via a separate `/v1/messages` LLM-as-judge
   call. Gated behind `TF_ACC_SCENARIOS=1`; runs manually, nightly via
-  cron, and as a release gate. First scenario:
-  `fibonacci_default_toolset` (agent with the default Anthropic toolset
-  computes the 10th Fibonacci number; passes if 55 appears in the
-  response and the trajectory shows a tool was used).
+  cron, and as a release gate.
+- L5 scenario `fibonacci_default_toolset` — agent with the default
+  Anthropic toolset computes the 10th Fibonacci number; passes if 55
+  appears in the response and the trajectory shows a tool was used.
+- L5 scenario `multi_capability_research` — exercises five advanced
+  capabilities in one session: public MCP (DeepWiki), custom skill,
+  multiagent dispatch (researcher + verifier sub-agents), rare-pkg
+  environment (`pip: [tabulate]`), and an auto-attached memory store.
+  Costs ~$0.50/run; ~$0.60/run nightly when combined with Fibonacci.
+- Cost reporter on the L5 suite. Prints a per-scenario summary table
+  with token breakdown, an aggregate, and a USD estimate keyed off a
+  local `pricing.go` table. Cache reads are priced at 10% of input,
+  cache writes at 125%, matching Anthropic's published rates.
+- YAML loader substitution: `${SCENARIO_DIR}` in `terraform_config`
+  resolves to the absolute path of the YAML's directory at load time,
+  letting scenarios reference fixture dirs (e.g. skill `source_dir`)
+  portably across machines.
 - Resource `claude-managed-agents_skill` for managing custom skill content
   end-to-end via the Skills API beta (`skills-2025-10-02`). Walks a local
   `source_dir`, computes a sha256 content hash combined with an optional
@@ -31,12 +46,38 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `created_at`.
 - Sweeper `sweep_skills` matching the `tf-acc-test-` prefix and the
   shared 1-hour age threshold. Cascades through versions before deleting.
+- Client transport for the Sessions, Session Events, and Judge endpoints
+  (`internal/client/session.go`, `internal/client/judge.go`). Used by
+  the L5 harness; not exposed as Terraform resources because session
+  lifecycle is per-test, not infrastructure-managed.
+- `SessionCreateRequest.Resources` for attaching memory stores at session
+  create-time. The upstream API does not support attach-on-the-fly; the
+  L5 runner auto-discovers every `claude-managed-agents_memory_store.*`
+  resource in Terraform state and threads it through.
 
 ### Changed
 - **CI**: `live.yml` schedule promoted from weekly (Monday 03:00 UTC) to
   nightly (every day 03:00 UTC). Live-API divergences (the kind that
   caused 17 fixes at the v0.2 cutover) now surface within 24h instead of
   up to 7 days. Sweeper's 1h age threshold keeps cost bounded.
+- **CI**: Release workflow (`release.yml`) now blocks goreleaser on both
+  `live` (L3) and `scenarios` (L5) passing. A hotfix bypass is available
+  via `workflow_dispatch.inputs.skip_scenarios=true`.
+- **Repo merge strategy**: default switched from squash to rebase-merge
+  so individual commits land on `main` with their original messages
+  intact. Squash and merge-commit are disabled at the repo level.
+
+### Fixed
+- Skill multipart uploads now wrap files under a top-level folder named
+  after `display_title`, matching the live API's expected shape
+  (`<folder>/SKILL.md` rather than bare `SKILL.md`). The fake-API test
+  fixture did not enforce the same shape, hiding the divergence until
+  the L5 scenario first exercised the skill resource against
+  api.anthropic.com. Fixes #31, #32.
+- `ListSessionEvents` now paginates by `created_at[gt]` timestamp
+  instead of an `after=<event_id>` cursor. The upstream events
+  endpoint never accepted `after`; the bug surfaced the first time
+  the L5 polling loop ran live.
 
 ## [0.2.2] - 2026-05-13
 
