@@ -35,14 +35,17 @@ sudo unzip -o /tmp/terraform.zip -d /usr/local/bin
 rm /tmp/terraform.zip
 
 # ---- golangci-lint (make lint) ---------------------------------------------
-# Match the version pinned in the project Makefile's tooling section.
-GOLANGCI_VERSION="v1.61.0"
+# Mirror GOLANGCI_LINT_VERSION from the project Makefile. Bump in both places
+# in the same PR when upgrading.
+GOLANGCI_VERSION="v1.62.0"
 curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh \
   | sudo sh -s -- -b /usr/local/bin "${GOLANGCI_VERSION}"
 
 # ---- tfplugindocs / tfproviderdocs (make docs, make docs-check) ------------
-go install github.com/hashicorp/terraform-plugin-docs/cmd/tfplugindocs@latest
-go install github.com/bflad/tfproviderdocs@latest
+# Mirror TFPLUGINDOCS_VERSION and TFPROVIDERDOCS_VERSION from the project
+# Makefile.
+go install github.com/hashicorp/terraform-plugin-docs/cmd/tfplugindocs@v0.20.1
+go install github.com/bflad/tfproviderdocs@v0.12.1
 
 # ---- gh CLI -----------------------------------------------------------------
 # Usually pre-installed in the routine image, but pin defensively.
