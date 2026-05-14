@@ -5,7 +5,7 @@
 [![codecov](https://codecov.io/gh/andasv/terraform-provider-claude-managed-agents/graph/badge.svg)](https://codecov.io/gh/andasv/terraform-provider-claude-managed-agents)
 [![License: MPL 2.0](https://img.shields.io/badge/license-MPL%202.0-blue.svg)](https://www.mozilla.org/MPL/2.0/)
 
-A Terraform / OpenTofu provider for **Anthropic Claude Managed Agents** — declaratively manage agents, environments, vaults, and memory stores from Terraform configurations.
+A Terraform / OpenTofu provider for **Anthropic Claude Managed Agents** — declaratively manage agents (with tools, MCP servers, skills, and multiagent coordination), environments, vaults, custom skills, and memory stores from Terraform configurations.
 
 > **Unofficial.** This is a community project. It is not maintained by, endorsed by, or affiliated with Anthropic. Upstream API: [Claude Managed Agents docs](https://platform.claude.com/docs/en/managed-agents).
 
@@ -23,32 +23,20 @@ This provider lets you put that configuration under Terraform so you can:
 
 ## Status / scope
 
-v0.1 shipped a deliberately narrow agent-only surface. v0.2 expanded to
-environments, vaults, vault credentials, memory stores, and exposed the
-agent nested config (tools, MCP servers, skills, multiagent) as first-class
-HCL. v0.3 adds end-to-end skill management.
+| Capability | Status |
+|---|---|
+| Resource + data source `claude-managed-agents_agent` (flat fields: name, model, system, description, metadata) | shipped |
+| Agent nested HCL: `tools` (`agent_toolset_20260401`, `mcp_toolset`, `custom`), `mcp_servers`, `skills`, `multiagent` | shipped |
+| Resource + data source `claude-managed-agents_environment` | shipped |
+| Resource + data source `claude-managed-agents_vault` | shipped |
+| Resource + data source `claude-managed-agents_vault_credential` (TF 1.11 write-only secrets) | shipped |
+| Resource + data source `claude-managed-agents_memory_store` | shipped |
+| Resource `claude-managed-agents_skill` (multipart upload, content-hash drift detection, 30 MB cap) | shipped |
+| Data source `claude-managed-agents_skill` (prebuilt + custom) | shipped |
+| Data source `claude-managed-agents_agent_version` | shipped |
+| Data source `claude-managed-agents_file` | shipped |
 
-| Capability | v0.1 | v0.2 | v0.3 (unreleased) |
-|---|---|---|---|
-| Resource `claude-managed-agents_agent` (flat fields: name, model, system, description, metadata) | yes | yes | yes |
-| Data source `claude-managed-agents_agent` | yes | yes | yes |
-| Resource `claude-managed-agents_environment` | — | yes | yes |
-| Data source `claude-managed-agents_environment` | — | yes | yes |
-| Resource `claude-managed-agents_vault` | — | yes | yes |
-| Data source `claude-managed-agents_vault` | — | yes | yes |
-| Resource `claude-managed-agents_vault_credential` (TF 1.11 write-only secrets) | — | yes | yes |
-| Data source `claude-managed-agents_vault_credential` | — | yes | yes |
-| Resource `claude-managed-agents_memory_store` | — | yes | yes |
-| Data source `claude-managed-agents_memory_store` | — | yes | yes |
-| Agent nested HCL: `mcp_servers`, `skills`, `multiagent`, `tools` (all three tool variants) | — | yes | yes |
-| Data source `claude-managed-agents_agent_version` | — | yes | yes |
-| Data source `claude-managed-agents_file` | — | yes | yes |
-| Resource `claude-managed-agents_skill` (multipart upload, content-hash drift detection) | — | — | yes |
-| Data source `claude-managed-agents_skill` (prebuilt + custom) | — | — | yes |
-
-Existing v0.1 agents that have server-side state in `tools`, `mcp_servers`,
-`skills`, or `multiagent` will see Terraform plan to set them on the next
-refresh after upgrading. Adding the matching HCL declaration is a no-op.
+For per-release change history (including deprecations and breaking changes), see [CHANGELOG.md](CHANGELOG.md).
 
 ## Quickstart
 
@@ -59,7 +47,7 @@ terraform {
   required_providers {
     claude-managed-agents = {
       source  = "andasv/claude-managed-agents"
-      version = "~> 0.2"
+      version = "~> 0.3"
     }
   }
 }
@@ -139,7 +127,7 @@ provider "claude-managed-agents" {
 
 ## OpenTofu compatibility
 
-The provider builds on protocol v6 and uses the Plugin Framework. As of v0.2, it requires Terraform 1.11+ or OpenTofu 1.8+ — both engines support TF 1.11 write-only attributes, which the provider uses to handle secrets in `claude-managed-agents_vault_credential`.
+The provider builds on protocol v6 and uses the Plugin Framework. It requires Terraform 1.11+ or OpenTofu 1.8+ — both engines support TF 1.11 write-only attributes, which the provider uses to handle secrets in `claude-managed-agents_vault_credential`.
 
 ## Local development
 
@@ -202,11 +190,7 @@ A breaking change is one of:
 
 ## Roadmap
 
-v0.2 shipped the full surface: environments, vaults + vault credentials, memory stores, agent nested blocks (tools, MCP servers, skills, multiagent), agent_version and file data sources.
-
-v0.3 adds end-to-end custom skill management: a `claude-managed-agents_skill` resource (multipart upload, content-hash drift detection, 30 MB cap, cascade-delete on destroy) plus a data source that works for both Anthropic prebuilt skills and custom skills.
-
-v0.4 candidates: an ephemeral resource for vault-credential validation, optional skill version retention attributes. Sessions, dreams, memory contents/versions, and webhook endpoints are not currently on the roadmap. Open an issue if you'd like to discuss.
+Under consideration for the next minor: an ephemeral resource for vault-credential validation, optional skill version retention attributes, and broadening the L5 behavioral scenario catalog. Sessions, dreams, memory contents/versions, and webhook endpoints are not currently on the roadmap. Open an issue if you'd like to discuss.
 
 ## Contributing
 
