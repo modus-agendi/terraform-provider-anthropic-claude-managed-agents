@@ -17,12 +17,14 @@ Each tutorial is a self-contained Terraform config with its own README.
 | [beginner/02-agent-with-metadata-and-system-prompt](beginner/02-agent-with-metadata-and-system-prompt) | Optional flat fields and metadata semantics | `agent` | 5 min |
 | [beginner/03-memory-store](beginner/03-memory-store) | Archive vs. hard-delete lifecycle | `memory_store` | 5 min |
 | [beginner/04-environment-cloud-unrestricted](beginner/04-environment-cloud-unrestricted) | Cloud sandbox with package preinstall | `environment` | 5 min |
+| [beginner/05-create-custom-skill](beginner/05-create-custom-skill) | Upload a custom skill from a local directory; trigger a version bump | `skill` | 5 min |
 | [intermediate/01-agent-with-mcp-and-tools](intermediate/01-agent-with-mcp-and-tools) | All three `tools` variants on one agent | `agent` | 10 min |
 | [intermediate/02-agent-with-skills-and-multiagent](intermediate/02-agent-with-skills-and-multiagent) | Skills + a coordinator with workers | `agent` × 2 | 10 min |
 | [intermediate/03-environment-limited-networking](intermediate/03-environment-limited-networking) | Locked-down egress with `allowed_hosts` | `environment` | 10 min |
 | [advanced/01-coordinator-and-workers](advanced/01-coordinator-and-workers) | Multi-worker topology + shared memory store | `agent` × 4, `memory_store` | 15 min |
 | [advanced/02-vault-with-mcp-oauth](advanced/02-vault-with-mcp-oauth) | Vault with `static_bearer` + `mcp_oauth` credentials | `vault`, `vault_credential` × 2 | 15 min |
 | [advanced/03-secure-agent-with-vault](advanced/03-secure-agent-with-vault) | End-to-end secure agent composition | every resource | 20 min |
+| [advanced/04-end-to-end-skill-and-agent](advanced/04-end-to-end-skill-and-agent) | Custom skill + Anthropic prebuilt skill on an agent + memory store | `skill`, `agent`, `memory_store` | 15 min |
 
 ## Canonical examples (Terraform Registry docs)
 
