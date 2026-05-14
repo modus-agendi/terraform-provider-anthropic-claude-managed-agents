@@ -11,6 +11,20 @@ A Terraform / OpenTofu provider for **Anthropic Claude Managed Agents** — decl
 
 ---
 
+### Anthropic Terraform provider — what this covers
+
+A community-maintained Terraform / OpenTofu provider for the **Anthropic Claude Managed Agents** API. Resources and data sources:
+
+- **Agents** — with nested HCL for `tools` (`agent_toolset_20260401`, `mcp_toolset`, `custom`), `mcp_servers`, `skills`, and `multiagent` coordination
+- **Environments** — cloud and dedicated, with `apt` / `npm` / `pip` package install
+- **Vaults** and **vault credentials** — secrets handled via Terraform 1.11 write-only attributes (not persisted to state)
+- **Custom skills** — multipart upload, content-hash drift detection, immutable versions
+- **Memory stores** — persistent agent memory, attached at session time
+
+The Managed Agents API is distinct from the standard Anthropic Messages API. This provider does not manage the Messages API or generic `/v1/messages` calls.
+
+---
+
 ## What this provider does
 
 Claude Managed Agents is Anthropic's hosted runtime for long-running, tool-using agents. The platform exposes a REST API for creating and configuring those agents and their supporting resources (environments, vaults, memory stores).
