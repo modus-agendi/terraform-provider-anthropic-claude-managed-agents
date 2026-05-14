@@ -287,6 +287,15 @@ clean: ## Remove build artifacts, coverage files, and ./bin
 	@echo "==> cleaned"
 
 # ===========================================================================
+##@ Routines
+
+ROUTINE_DIR := .claude/routines/bug-fix
+
+.PHONY: routine-sync
+routine-sync: ## Re-sync the cloud bug-fix routine from $(ROUTINE_DIR) (TRIGGER_ID=... to update in place)
+	@$(ROUTINE_DIR)/recreate.sh $(TRIGGER_ID)
+
+# ===========================================================================
 # Internal helpers (no help comment → not listed in `make help`)
 
 .PHONY: require-api-key

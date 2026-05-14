@@ -37,5 +37,8 @@ terraform.tfrc
 .env
 *.pem
 
-# Internal AI scratch (plans, research notes)
-.claude/
+# Internal AI scratch — local-only subpaths under .claude/
+# (.claude/routines/ IS committed for reproducibility — see its README.md)
+.claude/plans/
+.claude/worktrees/
+.claude/settings.local.json
