@@ -6,6 +6,58 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-05-15
+
+**Breaking: registry slug renamed.** The provider is now published as
+`andasv/anthropic-claude-managed-agents` (was
+`andasv/claude-managed-agents`). The original slug was lost when the
+underlying GitHub repository was renamed to
+`terraform-provider-anthropic-claude-managed-agents`; the Terraform
+Registry did not follow the rename and removed the old listing.
+
+### User migration
+
+Update your `required_providers` block:
+
+```hcl
+required_providers {
+  claude-managed-agents = {
+    source  = "andasv/anthropic-claude-managed-agents"  # was: andasv/claude-managed-agents
+    version = "~> 0.4"
+  }
+}
+```
+
+The local provider name (`claude-managed-agents`) and all resource
+type names (`claude-managed-agents_agent`, etc.) are **unchanged**.
+Only the registry source string moves. Resource definitions in your
+HCL do not need to change.
+
+### Changed
+- **Module path**: `github.com/andasv/terraform-provider-claude-managed-agents`
+  → `github.com/andasv/terraform-provider-anthropic-claude-managed-agents`.
+  Affects vendored consumers only.
+- **Binary name**: `terraform-provider-claude-managed-agents` →
+  `terraform-provider-anthropic-claude-managed-agents`. Goreleaser
+  artifacts are renamed accordingly.
+- **Provider Address constant** in `main.go` updated to the new
+  `registry.terraform.io/andasv/anthropic-claude-managed-agents` path.
+- **Examples, docs, README**: all `source = "andasv/claude-managed-agents"`
+  references updated to the new slug.
+- **Pre-0.4 GitHub releases were deleted** as part of this cutover.
+  They referenced the old (now-orphaned) registry slug and would have
+  caused confusion. Sources for those versions remain available via
+  the git tags `v0.1.0` through `v0.3.2`.
+
+### Inherits from the unpublished v0.3.3
+- L5 Fibonacci scenario aligned with what `agent_toolset_20260401`
+  actually exposes — `bash` is the execution path, not the
+  nonexistent `code_execution` tool. Trajectory check is now
+  `require_tool_use_named: bash` (deterministic).
+- Judge response parser tolerates reasoning prose before the JSON
+  verdict; extracts the first balanced `{...}` object from the body
+  with awareness of string literals.
+
 ## [0.3.3] - 2026-05-14
 
 This release supersedes the unpublished v0.3.2 tag (release artifacts

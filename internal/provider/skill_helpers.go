@@ -10,7 +10,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/andasv/terraform-provider-claude-managed-agents/internal/client"
+	"github.com/andasv/terraform-provider-anthropic-claude-managed-agents/internal/client"
 )
 
 // Provider-side skill upload limits. These mirror the client-side constants

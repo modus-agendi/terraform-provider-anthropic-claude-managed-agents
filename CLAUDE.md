@@ -1,4 +1,4 @@
-# Project conventions — terraform-provider-claude-managed-agents
+# Project conventions — terraform-provider-anthropic-claude-managed-agents
 
 Instructions for Claude when working in this repo. The goal: stay consistent
 with decisions already locked in, avoid repeating the gotchas we hit during
@@ -12,7 +12,7 @@ grows.
 Unofficial community Terraform / OpenTofu provider for Anthropic Claude
 Managed Agents (REST API at `https://api.anthropic.com/v1/agents` etc.).
 Targets the HashiCorp Terraform Registry and OpenTofu Registry. Registry
-source: `andasv/claude-managed-agents`. License: MPL 2.0.
+source: `andasv/anthropic-claude-managed-agents`. License: MPL 2.0.
 
 ---
 
@@ -101,7 +101,7 @@ mode the name is stable (`tf-acc-test-purpose`); in live mode it's random.
 The sweeper matches the `tf-acc-test-` prefix and archives anything older
 than 1 hour.
 
-### Module path: `github.com/andasv/terraform-provider-claude-managed-agents`
+### Module path: `github.com/andasv/terraform-provider-anthropic-claude-managed-agents`
 
 NOT `asvirida/...` — that was the original plan, but the active gh account
 is `andasv`. The whole codebase was renamed in v0.1.

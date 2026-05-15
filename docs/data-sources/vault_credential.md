@@ -16,7 +16,7 @@ Look up an existing vault credential by `vault_id` and credential `id`. Secret p
 terraform {
   required_providers {
     claude-managed-agents = {
-      source  = "andasv/claude-managed-agents"
+      source  = "andasv/anthropic-claude-managed-agents"
       version = "~> 0.2"
     }
   }

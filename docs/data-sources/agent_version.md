@@ -16,7 +16,7 @@ Look up a specific historical version of an agent. The upstream API only exposes
 terraform {
   required_providers {
     claude-managed-agents = {
-      source  = "andasv/claude-managed-agents"
+      source  = "andasv/anthropic-claude-managed-agents"
       version = "~> 0.2"
     }
   }

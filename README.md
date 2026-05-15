@@ -1,8 +1,8 @@
-# terraform-provider-claude-managed-agents
+# terraform-provider-anthropic-claude-managed-agents
 
-[![CI](https://github.com/andasv/terraform-provider-claude-managed-agents/actions/workflows/test.yml/badge.svg)](https://github.com/andasv/terraform-provider-claude-managed-agents/actions/workflows/test.yml)
-[![Release](https://github.com/andasv/terraform-provider-claude-managed-agents/actions/workflows/release.yml/badge.svg)](https://github.com/andasv/terraform-provider-claude-managed-agents/actions/workflows/release.yml)
-[![codecov](https://codecov.io/gh/andasv/terraform-provider-claude-managed-agents/graph/badge.svg)](https://codecov.io/gh/andasv/terraform-provider-claude-managed-agents)
+[![CI](https://github.com/andasv/terraform-provider-anthropic-claude-managed-agents/actions/workflows/test.yml/badge.svg)](https://github.com/andasv/terraform-provider-anthropic-claude-managed-agents/actions/workflows/test.yml)
+[![Release](https://github.com/andasv/terraform-provider-anthropic-claude-managed-agents/actions/workflows/release.yml/badge.svg)](https://github.com/andasv/terraform-provider-anthropic-claude-managed-agents/actions/workflows/release.yml)
+[![codecov](https://codecov.io/gh/andasv/terraform-provider-anthropic-claude-managed-agents/graph/badge.svg)](https://codecov.io/gh/andasv/terraform-provider-anthropic-claude-managed-agents)
 [![License: MPL 2.0](https://img.shields.io/badge/license-MPL%202.0-blue.svg)](https://www.mozilla.org/MPL/2.0/)
 
 A Terraform / OpenTofu provider for **Anthropic Claude Managed Agents** — declaratively manage agents (with tools, MCP servers, skills, and multiagent coordination), environments, vaults, custom skills, and memory stores from Terraform configurations.
@@ -60,7 +60,7 @@ terraform {
 
   required_providers {
     claude-managed-agents = {
-      source  = "andasv/claude-managed-agents"
+      source  = "andasv/anthropic-claude-managed-agents"
       version = "~> 0.3"
     }
   }
@@ -148,8 +148,8 @@ The provider builds on protocol v6 and uses the Plugin Framework. It requires Te
 Pre-requisites: Go 1.23+, Terraform 1.11+ (or OpenTofu 1.8+), `golangci-lint`.
 
 ```sh
-git clone https://github.com/andasv/terraform-provider-claude-managed-agents
-cd terraform-provider-claude-managed-agents
+git clone https://github.com/andasv/terraform-provider-anthropic-claude-managed-agents
+cd terraform-provider-anthropic-claude-managed-agents
 go mod download
 
 make test            # unit tests
@@ -176,7 +176,7 @@ Once installed locally, pin the dev version in your test `main.tf`:
 terraform {
   required_providers {
     claude-managed-agents = {
-      source  = "andasv/claude-managed-agents"
+      source  = "andasv/anthropic-claude-managed-agents"
       version = "0.0.1-dev"
     }
   }
@@ -184,7 +184,7 @@ terraform {
 ```
 
 > **Gotcha — `make install` shadows registry releases.** `make install`
-> copies the binary into `~/.terraform.d/plugins/registry.terraform.io/andasv/claude-managed-agents/`,
+> copies the binary into `~/.terraform.d/plugins/registry.terraform.io/andasv/anthropic-claude-managed-agents/`,
 > which Terraform treats as the authoritative version source. Any
 > external config that pins a different version (e.g. `version = "~> 0.2"`)
 > will fail `terraform init` with "no available releases match the given

@@ -26,8 +26,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 
-	"github.com/andasv/terraform-provider-claude-managed-agents/internal/client"
-	"github.com/andasv/terraform-provider-claude-managed-agents/internal/provider"
+	"github.com/andasv/terraform-provider-anthropic-claude-managed-agents/internal/client"
+	"github.com/andasv/terraform-provider-anthropic-claude-managed-agents/internal/provider"
 )
 
 // pollInterval is how often the harness re-polls /v1/sessions/{id}/events
@@ -109,7 +109,7 @@ func runScenario(t *testing.T, scn *Scenario, agg *aggregator) {
 
 	c, err := client.New(client.Config{
 		APIKey:    apiKey,
-		UserAgent: "terraform-provider-claude-managed-agents/scenarios",
+		UserAgent: "terraform-provider-anthropic-claude-managed-agents/scenarios",
 	})
 	if err != nil {
 		t.Fatalf("scenarios: build client: %v", err)

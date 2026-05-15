@@ -16,7 +16,7 @@ Look up metadata for a file uploaded to the Managed Agents Files API. Only metad
 terraform {
   required_providers {
     claude-managed-agents = {
-      source  = "andasv/claude-managed-agents"
+      source  = "andasv/anthropic-claude-managed-agents"
       version = "~> 0.2"
     }
   }
