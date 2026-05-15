@@ -11,7 +11,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 
-	"github.com/andasv/terraform-provider-claude-managed-agents/internal/client"
+	"github.com/andasv/terraform-provider-anthropic-claude-managed-agents/internal/client"
 )
 
 // testResourcePrefix is the name prefix every live-mode test resource must
@@ -65,7 +65,7 @@ func sweepAgents(_ string) error {
 
 	c, err := client.New(client.Config{
 		APIKey:    apiKey,
-		UserAgent: "terraform-provider-claude-managed-agents/sweeper",
+		UserAgent: "terraform-provider-anthropic-claude-managed-agents/sweeper",
 	})
 	if err != nil {
 		return fmt.Errorf("sweeper: build client: %w", err)
@@ -121,7 +121,7 @@ func sweepEnvironments(_ string) error {
 
 	c, err := client.New(client.Config{
 		APIKey:    apiKey,
-		UserAgent: "terraform-provider-claude-managed-agents/sweeper",
+		UserAgent: "terraform-provider-anthropic-claude-managed-agents/sweeper",
 	})
 	if err != nil {
 		return fmt.Errorf("env sweeper: build client: %w", err)
@@ -187,7 +187,7 @@ func sweepMemoryStores(_ string) error {
 
 	c, err := client.New(client.Config{
 		APIKey:    apiKey,
-		UserAgent: "terraform-provider-claude-managed-agents/sweeper",
+		UserAgent: "terraform-provider-anthropic-claude-managed-agents/sweeper",
 	})
 	if err != nil {
 		return fmt.Errorf("memory store sweeper: build client: %w", err)
@@ -243,7 +243,7 @@ func sweepVaults(_ string) error {
 
 	c, err := client.New(client.Config{
 		APIKey:    apiKey,
-		UserAgent: "terraform-provider-claude-managed-agents/sweeper",
+		UserAgent: "terraform-provider-anthropic-claude-managed-agents/sweeper",
 	})
 	if err != nil {
 		return fmt.Errorf("vault sweeper: build client: %w", err)
@@ -300,7 +300,7 @@ func sweepSkills(_ string) error {
 
 	c, err := client.New(client.Config{
 		APIKey:    apiKey,
-		UserAgent: "terraform-provider-claude-managed-agents/sweeper",
+		UserAgent: "terraform-provider-anthropic-claude-managed-agents/sweeper",
 	})
 	if err != nil {
 		return fmt.Errorf("skill sweeper: build client: %w", err)

@@ -1,4 +1,4 @@
-# Makefile for terraform-provider-claude-managed-agents.
+# Makefile for terraform-provider-anthropic-claude-managed-agents.
 #
 # Run `make` (or `make help`) for a list of targets.
 #
@@ -16,7 +16,7 @@ MAKEFLAGS      += --no-print-directory
 # ---- Project identity -----------------------------------------------------
 
 NAMESPACE      ?= andasv
-NAME           ?= claude-managed-agents
+NAME           ?= anthropic-claude-managed-agents
 BINARY         := terraform-provider-$(NAME)
 PROVIDER_TYPE  := claude-managed-agents
 MODULE         := github.com/$(NAMESPACE)/terraform-provider-$(NAME)

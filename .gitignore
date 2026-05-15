@@ -42,3 +42,7 @@ terraform.tfrc
 .claude/plans/
 .claude/worktrees/
 .claude/settings.local.json
+
+# Local Claude Code / playwright-mcp scratch artifacts — never commit.
+.claude/scheduled_tasks.lock
+.playwright-mcp/

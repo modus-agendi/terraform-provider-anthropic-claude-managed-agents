@@ -34,7 +34,7 @@ Manages a single credential within a vault. Bind a token or OAuth client to an M
 terraform {
   required_providers {
     claude-managed-agents = {
-      source  = "andasv/claude-managed-agents"
+      source  = "andasv/anthropic-claude-managed-agents"
       version = "~> 0.2"
     }
   }

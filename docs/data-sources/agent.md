@@ -16,7 +16,7 @@ Look up an existing Claude Managed Agents agent by id.
 terraform {
   required_providers {
     claude-managed-agents = {
-      source  = "andasv/claude-managed-agents"
+      source  = "andasv/anthropic-claude-managed-agents"
       version = "~> 0.2"
     }
   }

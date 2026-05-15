@@ -1,4 +1,4 @@
-// Command terraform-provider-claude-managed-agents is the plugin binary
+// Command terraform-provider-anthropic-claude-managed-agents is the plugin binary
 // for the Anthropic Managed Agents Terraform / OpenTofu provider. It is
 // invoked by the Terraform CLI through the plugin protocol; see
 // internal/provider for the actual schemas and CRUD implementations.
@@ -9,7 +9,7 @@ import (
 	"flag"
 	"log"
 
-	"github.com/andasv/terraform-provider-claude-managed-agents/internal/provider"
+	"github.com/andasv/terraform-provider-anthropic-claude-managed-agents/internal/provider"
 
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 )
@@ -25,7 +25,7 @@ func main() {
 	flag.Parse()
 
 	opts := providerserver.ServeOpts{
-		Address: "registry.terraform.io/andasv/claude-managed-agents",
+		Address: "registry.terraform.io/andasv/anthropic-claude-managed-agents",
 		Debug:   debug,
 	}
 

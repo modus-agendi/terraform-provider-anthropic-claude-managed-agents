@@ -17,10 +17,10 @@ the policy will shift to "last two minor lines."
 **Please do not open public GitHub issues for security problems.**
 
 Report privately via GitHub Security Advisories:
-[https://github.com/andasv/terraform-provider-claude-managed-agents/security/advisories/new](https://github.com/andasv/terraform-provider-claude-managed-agents/security/advisories/new).
+[https://github.com/andasv/terraform-provider-anthropic-claude-managed-agents/security/advisories/new](https://github.com/andasv/terraform-provider-anthropic-claude-managed-agents/security/advisories/new).
 
 If that route is unavailable, email `asvirida123@gmail.com` with the subject
-line `terraform-provider-claude-managed-agents: SECURITY`.
+line `terraform-provider-anthropic-claude-managed-agents: SECURITY`.
 
 Include in the report:
 
@@ -37,7 +37,7 @@ you ask us not to.
 
 In scope:
 
-- the provider binary (`terraform-provider-claude-managed-agents`),
+- the provider binary (`terraform-provider-anthropic-claude-managed-agents`),
 - the Go modules under `internal/client/`, `internal/provider/`, and `internal/scenarios/`,
 - the release pipeline in `.github/workflows/release.yml`,
 - the L5 behavioral scenarios in `internal/scenarios/scenarios/*.yaml` and the

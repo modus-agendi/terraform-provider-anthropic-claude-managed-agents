@@ -13,7 +13,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
-	"github.com/andasv/terraform-provider-claude-managed-agents/internal/client"
+	"github.com/andasv/terraform-provider-anthropic-claude-managed-agents/internal/client"
 )
 
 var (

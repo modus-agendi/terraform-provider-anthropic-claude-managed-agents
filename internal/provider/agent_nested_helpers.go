@@ -8,7 +8,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
-	"github.com/andasv/terraform-provider-claude-managed-agents/internal/client"
+	"github.com/andasv/terraform-provider-anthropic-claude-managed-agents/internal/client"
 )
 
 // mcpServerObjectAttrTypes returns the attribute-type map for one entry
