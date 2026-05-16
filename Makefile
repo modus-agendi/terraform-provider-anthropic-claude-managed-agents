@@ -57,7 +57,7 @@ endif
 
 # ---- Tooling pins (keep in sync with .github/workflows/test.yml) ----------
 
-GOLANGCI_LINT_VERSION  := v1.62.0
+GOLANGCI_LINT_VERSION  := v2.5.0
 TFPLUGINDOCS_VERSION   := v0.20.1
 TFPROVIDERDOCS_VERSION := v0.12.1
 
