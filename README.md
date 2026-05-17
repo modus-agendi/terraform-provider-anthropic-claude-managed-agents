@@ -86,6 +86,8 @@ output "agent_id" {
 }
 ```
 
+> **Don't rename `claude-managed-agents` to something shorter.** That string is the prefix on every resource type (`claude-managed-agents_agent`, `claude-managed-agents_vault`, …). Renaming it in `required_providers` (e.g. to `anthropic`) means every resource block needs an explicit `provider = anthropic` argument — noisier than the literal name.
+
 ```sh
 export ANTHROPIC_API_KEY="sk-ant-..."
 terraform init

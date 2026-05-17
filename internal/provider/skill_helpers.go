@@ -113,7 +113,7 @@ func canonicalSkillHash(files []client.SkillFile, rotation int64) string {
 		h.Write(f.Content)
 		h.Write([]byte{0})
 	}
-	fmt.Fprintf(h, "|rotation:%d", rotation)
+	fmt.Fprintf(h, "|rotation:%d", rotation) //nolint:errcheck
 	return hex.EncodeToString(h.Sum(nil))
 }
 
