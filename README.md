@@ -86,6 +86,8 @@ output "agent_id" {
 }
 ```
 
+> **Don't rename `claude-managed-agents` to something shorter in `required_providers`.** That string becomes the prefix on every resource type (`claude-managed-agents_agent`, `claude-managed-agents_vault`, …). If you alias it (e.g. `anthropic = { source = "andasv/anthropic-claude-managed-agents" }`), Terraform will not recognise `claude-managed-agents_agent` as a valid resource type — you'd have to add an explicit `provider = anthropic` argument to every resource and data source block, which is noisier than the literal name.
+
 ```sh
 export ANTHROPIC_API_KEY="sk-ant-..."
 terraform init
