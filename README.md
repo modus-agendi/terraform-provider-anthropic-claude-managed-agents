@@ -65,7 +65,11 @@ terraform {
     }
   }
 }
+```
 
+> **Don't rename `claude-managed-agents` to something shorter.** That string is the prefix on every resource type (`claude-managed-agents_agent`, `claude-managed-agents_vault`, …). If you alias it (e.g. to `anthropic`), every resource block must add an explicit `provider = claude-managed-agents` argument — noisier than keeping the literal name.
+
+```hcl
 provider "claude-managed-agents" {
   # api_key defaults to the ANTHROPIC_API_KEY environment variable.
 }
