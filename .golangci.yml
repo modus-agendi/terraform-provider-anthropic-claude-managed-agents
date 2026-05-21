@@ -1,16 +1,17 @@
+version: "2"
+
 run:
   timeout: 5m
   tests: true
 
 linters:
-  disable-all: true
+  default: none
   enable:
     - bodyclose
     - errcheck
     - errorlint
     - gocritic
     - gosec
-    - gosimple
     - govet
     - ineffassign
     - misspell
@@ -19,40 +20,38 @@ linters:
     - staticcheck
     - unconvert
     - unused
-
-linters-settings:
-  gosec:
-    excludes:
-      # math/rand in tests is fine (G404). We use crypto/rand in production code.
-      - G404
-      # File inclusion via variable (G304) - we don't read user-supplied paths.
-      - G304
-  revive:
+  settings:
+    gosec:
+      excludes:
+        # math/rand in tests is fine (G404). We use crypto/rand in production code.
+        - G404
+        # File inclusion via variable (G304) - we don't read user-supplied paths.
+        - G304
+    revive:
+      rules:
+        - name: var-naming
+        - name: package-comments
+        # `exported` is disabled because internal/* packages are not part of
+        # the public Go API surface — adding godoc to every helper would be
+        # noise. Per-file doc comments and types.go-style commentary cover the
+        # WHY where it matters.
+        - name: exported
+          disabled: true
+    errcheck:
+      # The test helpers intentionally ignore errors on response writes.
+      exclude-functions:
+        - (net/http.ResponseWriter).Write
+        - (encoding/json.Encoder).Encode
+  exclusions:
     rules:
-      - name: var-naming
-      - name: package-comments
-      # `exported` is disabled because internal/* packages are not part of
-      # the public Go API surface — adding godoc to every helper would be
-      # noise. Per-file doc comments and types.go-style commentary cover the
-      # WHY where it matters.
-      - name: exported
-        disabled: true
-  errcheck:
-    # The test helpers intentionally ignore errors on response writes.
-    exclude-functions:
-      - (net/http.ResponseWriter).Write
-      - (encoding/json.Encoder).Encode
-
-issues:
-  exclude-rules:
-    - path: _test\.go
-      linters:
-        - errcheck
-        - gosec
-        - bodyclose
-        - gocritic
-        - errorlint
-    - path: internal/provider/testutil_test.go
-      linters:
-        - revive
-        - gocritic
+      - path: _test\.go
+        linters:
+          - errcheck
+          - gosec
+          - bodyclose
+          - gocritic
+          - errorlint
+      - path: internal/provider/testutil_test\.go
+        linters:
+          - revive
+          - gocritic
