@@ -90,8 +90,6 @@ output "agent_id" {
 }
 ```
 
-> **Don't rename `claude-managed-agents` to a shorter alias.** The local name in `required_providers` is the prefix on every resource type (`claude-managed-agents_agent`, `claude-managed-agents_vault`, …). Renaming it to `anthropic` or anything else means every resource and data source block must carry an explicit `provider = <alias>` argument — noisier than keeping the literal name. If you write `anthropic_agent` without that argument you'll get "Invalid resource type" errors at plan time.
-
 ```sh
 export ANTHROPIC_API_KEY="sk-ant-..."
 terraform init
