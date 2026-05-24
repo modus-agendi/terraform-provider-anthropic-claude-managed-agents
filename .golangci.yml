@@ -27,6 +27,10 @@ linters:
         - G404
         # File inclusion via variable (G304) - we don't read user-supplied paths.
         - G304
+        # TOCTOU in WalkDir (G122) - skill source_dir is configured by the
+        # operator before `terraform apply`; we don't traverse attacker-
+        # controlled filesystems. Same trust model as G304.
+        - G122
     revive:
       rules:
         - name: var-naming
