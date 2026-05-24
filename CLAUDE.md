@@ -55,9 +55,9 @@ Five layers. **Do not collapse them.**
 |---|---|---|---|
 | **L1 Unit** | `internal/client/*_test.go` | every PR, `-race` + coverage | no |
 | **L2 Integration (httptest)** | `internal/provider/*_test.go` (`TF_ACC=1`) | every PR, TF 1.8/1.9/1.10 matrix | no — in-process fake API |
-| **L3 Live acceptance** | same provider tests (`TF_ACC_LIVE=1`) | manual `workflow_dispatch` (later: + nightly + push) | yes |
+| **L3 Live acceptance** | same provider tests (`TF_ACC_LIVE=1`) | manual `workflow_dispatch` + weekly cron (Mon 03:00 UTC) | yes |
 | **L4 Sweeper** | `internal/provider/sweep_test.go` | runs around L3 | yes (archive only) |
-| **L5 Behavioral scenarios** | `internal/scenarios/*_test.go` (`TF_ACC_SCENARIOS=1`) | manual + nightly cron + release gate | yes (sessions, full tool use, LLM-as-judge) |
+| **L5 Behavioral scenarios** | `internal/scenarios/*_test.go` (`TF_ACC_SCENARIOS=1`) | manual + weekly cron (Mon 04:00 UTC) + release gate | yes (sessions, full tool use, LLM-as-judge) |
 
 The fake API lives in `internal/provider/testutil_test.go` and intentionally
 diverges from real Anthropic only where the real shape is unspecified in the
@@ -71,7 +71,7 @@ Terraform, opens a session against the real Anthropic API, captures the full
 event trajectory, asserts deterministic properties on it, then feeds the
 final answer to a separate `/v1/messages` call ("LLM as judge") that returns
 a structured PASS/FAIL verdict. Cost is real ($0.05–$0.20 per scenario
-depending on tool-use count). Triggered manually, nightly via cron, and as
+depending on tool-use count). Triggered manually, weekly via cron, and as
 a release gate — `release.yml` blocks goreleaser on a scenario FAIL unless
 `workflow_dispatch.inputs.skip_scenarios=true`.
 

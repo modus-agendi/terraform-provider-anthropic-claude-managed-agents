@@ -138,19 +138,21 @@ test-compile: ## Compile the test binary (catches compile errors without running
 # ===========================================================================
 ##@ Sweep
 
+SWEEP_RESOURCES = $(PROVIDER_TYPE)_agent,$(PROVIDER_TYPE)_environment,$(PROVIDER_TYPE)_memory_store,$(PROVIDER_TYPE)_vault,$(PROVIDER_TYPE)_skill
+
 .PHONY: sweep
-sweep: require-api-key ## Archive orphan tf-acc-test-* agents older than 1h
-	@echo "==> sweeping orphan test agents older than 1h"
+sweep: require-api-key ## Archive orphan tf-acc-test-* resources older than 1h
+	@echo "==> sweeping orphan test resources older than 1h"
 	go test ./internal/provider/... -v \
 		-sweep=anthropic \
-		-sweep-run=$(PROVIDER_TYPE)_agent \
+		-sweep-run=$(SWEEP_RESOURCES) \
 		-timeout 10m
 
 .PHONY: sweep-allow-failures
 sweep-allow-failures: require-api-key ## Sweep but keep going on errors
 	go test ./internal/provider/... -v \
 		-sweep=anthropic \
-		-sweep-run=$(PROVIDER_TYPE)_agent \
+		-sweep-run=$(SWEEP_RESOURCES) \
 		-sweep-allow-failures \
 		-timeout 10m
 

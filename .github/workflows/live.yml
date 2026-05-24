@@ -7,13 +7,12 @@ on:
         description: "If true, only run the sweeper (do not run live tests)"
         type: boolean
         default: false
-  # Nightly drift detection. Runs at 03:00 UTC every day to surface
+  # Weekly drift detection. Runs at 03:00 UTC every Monday to surface
   # divergences between the L2 fake API fixture and the real Anthropic
-  # API as soon as they appear, rather than waiting for the next release.
-  # The pre/post sweeper cleans up resources older than 1h with the
-  # tf-acc-test- prefix, so cost stays bounded even on consecutive runs.
+  # API. The pre/post sweeper cleans up resources older than 1h with the
+  # tf-acc-test- prefix, so cost stays bounded across runs.
   schedule:
-    - cron: "0 3 * * *"
+    - cron: "0 3 * * 1"
 
 permissions:
   contents: read
@@ -46,7 +45,7 @@ jobs:
           go test ./internal/provider/... \
             -v \
             -sweep=anthropic \
-            -sweep-run=claude-managed-agents_agent \
+            -sweep-run=claude-managed-agents_agent,claude-managed-agents_environment,claude-managed-agents_memory_store,claude-managed-agents_vault,claude-managed-agents_skill \
             -timeout 10m
 
       - name: Live acceptance tests
@@ -62,6 +61,6 @@ jobs:
           go test ./internal/provider/... \
             -v \
             -sweep=anthropic \
-            -sweep-run=claude-managed-agents_agent \
+            -sweep-run=claude-managed-agents_agent,claude-managed-agents_environment,claude-managed-agents_memory_store,claude-managed-agents_vault,claude-managed-agents_skill \
             -sweep-allow-failures \
             -timeout 10m

@@ -175,9 +175,16 @@ func sweepEnvironments(_ string) error {
 	return nil
 }
 
-// sweepMemoryStores archives any memory store whose name starts with
-// tf-acc-test- and was created more than sweepAgeThreshold ago. Archive
-// is preferred over delete to preserve audit trails for shared accounts.
+// sweepMemoryStores deletes any memory store whose name starts with
+// tf-acc-test- and was created more than sweepAgeThreshold ago. Unlike
+// other resources, archived memory stores still count against the
+// per-organization 200-store cap, so the sweeper must hard-delete them
+// (cascade through memories and versions) to free quota. include_archived
+// is required because most orphans accumulate in the archived bucket.
+//
+// Because each delete mutates the listing, paginating with after_id can
+// skip newly-shifted entries. Instead we re-list page 1 until no
+// tf-acc-test orphans remain, capped by maxSweepRounds for safety.
 func sweepMemoryStores(_ string) error {
 	apiKey := os.Getenv("ANTHROPIC_API_KEY")
 	if apiKey == "" {
@@ -196,16 +203,17 @@ func sweepMemoryStores(_ string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
+	const maxSweepRounds = 20
 	var (
-		cursor       string
-		swept        int
+		deleted      int
 		skippedYoung int
 	)
-	for {
-		page, err := c.ListMemoryStores(ctx, client.ListMemoryStoresParams{Limit: 100, AfterID: cursor})
+	for round := 0; round < maxSweepRounds; round++ {
+		page, err := c.ListMemoryStores(ctx, client.ListMemoryStoresParams{Limit: 100, IncludeArchived: true})
 		if err != nil {
 			return fmt.Errorf("memory store sweeper: list: %w", err)
 		}
+		madeProgress := false
 		for _, s := range page.Data {
 			if !strings.HasPrefix(s.Name, testResourcePrefix) {
 				continue
@@ -214,19 +222,19 @@ func sweepMemoryStores(_ string) error {
 				skippedYoung++
 				continue
 			}
-			if err := c.ArchiveMemoryStore(ctx, s.ID); err != nil && !client.IsNotFound(err) {
-				return fmt.Errorf("memory store sweeper: archive %s: %w", s.ID, err)
+			if err := c.DeleteMemoryStore(ctx, s.ID); err != nil && !client.IsNotFound(err) {
+				return fmt.Errorf("memory store sweeper: delete %s: %w", s.ID, err)
 			}
 			log.Printf("[INFO] swept memory_store %s (%s)", s.ID, s.Name)
-			swept++
+			deleted++
+			madeProgress = true
 		}
-		if !page.HasMore {
+		if !madeProgress {
 			break
 		}
-		cursor = page.LastID
 	}
 
-	log.Printf("[INFO] memory store sweeper finished: archived=%d skipped_young=%d", swept, skippedYoung)
+	log.Printf("[INFO] memory store sweeper finished: deleted=%d skipped_young=%d", deleted, skippedYoung)
 	return nil
 }
 

@@ -53,7 +53,7 @@ jobs:
           go test ./internal/provider/... \
             -v \
             -sweep=anthropic \
-            -sweep-run=claude-managed-agents_agent \
+            -sweep-run=claude-managed-agents_agent,claude-managed-agents_environment,claude-managed-agents_memory_store,claude-managed-agents_vault,claude-managed-agents_skill \
             -timeout 10m
       - name: Live acceptance tests
         run: |
@@ -66,7 +66,7 @@ jobs:
           go test ./internal/provider/... \
             -v \
             -sweep=anthropic \
-            -sweep-run=claude-managed-agents_agent \
+            -sweep-run=claude-managed-agents_agent,claude-managed-agents_environment,claude-managed-agents_memory_store,claude-managed-agents_vault,claude-managed-agents_skill \
             -sweep-allow-failures \
             -timeout 10m
 
@@ -103,7 +103,7 @@ jobs:
           go test ./internal/provider/... \
             -v \
             -sweep=anthropic \
-            -sweep-run=claude-managed-agents_agent \
+            -sweep-run=claude-managed-agents_agent,claude-managed-agents_environment,claude-managed-agents_memory_store,claude-managed-agents_vault,claude-managed-agents_skill \
             -timeout 10m
       - name: Scenarios
         run: |
@@ -117,7 +117,7 @@ jobs:
           go test ./internal/provider/... \
             -v \
             -sweep=anthropic \
-            -sweep-run=claude-managed-agents_agent \
+            -sweep-run=claude-managed-agents_agent,claude-managed-agents_environment,claude-managed-agents_memory_store,claude-managed-agents_vault,claude-managed-agents_skill \
             -sweep-allow-failures \
             -timeout 10m
 

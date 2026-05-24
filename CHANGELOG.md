@@ -6,6 +6,21 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+- Sweepers now run for every registered resource type (agent, environment,
+  memory_store, vault, skill) in CI workflows and the `make sweep` target.
+  Previously only `claude-managed-agents_agent` was swept, letting test-only
+  memory stores accumulate until the per-org 200-store cap blocked the live
+  and scenarios cron runs.
+- `sweepMemoryStores` now hard-deletes orphan stores instead of archiving
+  them. Archived memory stores still count against the 200-store cap, so
+  archive alone never freed quota. The sweeper also lists with
+  `include_archived=true` so previously-archived orphans become visible.
+
+### Changed
+- Live and scenarios cron schedules moved from daily to weekly (Mondays
+  03:00 / 04:00 UTC).
+
 ## [0.4.0] - 2026-05-15
 
 **Breaking: registry slug renamed.** The provider is now published as

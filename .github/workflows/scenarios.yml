@@ -1,8 +1,8 @@
 name: scenarios
 
 # L5 behavioral scenarios run against the real Anthropic API and bill
-# real inference tokens. The workflow is gated to manual + nightly cron
-# (one hour after live.yml at 03:00 UTC) so PRs never trigger it.
+# real inference tokens. The workflow is gated to manual + weekly cron
+# (one hour after live.yml on Mondays at 04:00 UTC) so PRs never trigger it.
 on:
   workflow_dispatch:
     inputs:
@@ -11,7 +11,7 @@ on:
         type: boolean
         default: false
   schedule:
-    - cron: "0 4 * * *"
+    - cron: "0 4 * * 1"
 
 permissions:
   contents: read
@@ -45,7 +45,7 @@ jobs:
           go test ./internal/provider/... \
             -v \
             -sweep=anthropic \
-            -sweep-run=claude-managed-agents_agent \
+            -sweep-run=claude-managed-agents_agent,claude-managed-agents_environment,claude-managed-agents_memory_store,claude-managed-agents_vault,claude-managed-agents_skill \
             -timeout 10m
 
       - name: Scenarios
@@ -62,6 +62,6 @@ jobs:
           go test ./internal/provider/... \
             -v \
             -sweep=anthropic \
-            -sweep-run=claude-managed-agents_agent \
+            -sweep-run=claude-managed-agents_agent,claude-managed-agents_environment,claude-managed-agents_memory_store,claude-managed-agents_vault,claude-managed-agents_skill \
             -sweep-allow-failures \
             -timeout 10m
