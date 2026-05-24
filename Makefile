@@ -57,7 +57,7 @@ endif
 
 # ---- Tooling pins (keep in sync with .github/workflows/test.yml) ----------
 
-GOLANGCI_LINT_VERSION  := v1.62.0
+GOLANGCI_LINT_VERSION  := v2.12.2
 TFPLUGINDOCS_VERSION   := v0.20.1
 TFPROVIDERDOCS_VERSION := v0.12.1
 
@@ -264,7 +264,7 @@ docscheck: docs docs-check ## Regen docs + verify no diff + tfproviderdocs (CI g
 tools: ## Install dev tooling at pinned versions into ./bin
 	@mkdir -p $(LOCAL_BIN)
 	@echo "==> installing golangci-lint $(GOLANGCI_LINT_VERSION)"
-	@GOBIN=$(LOCAL_BIN) go install github.com/golangci/golangci-lint/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
+	@GOBIN=$(LOCAL_BIN) go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
 	@echo "==> installing tfplugindocs $(TFPLUGINDOCS_VERSION)"
 	@GOBIN=$(LOCAL_BIN) go install github.com/hashicorp/terraform-plugin-docs/cmd/tfplugindocs@$(TFPLUGINDOCS_VERSION)
 	@echo "==> installing tfproviderdocs $(TFPROVIDERDOCS_VERSION)"
