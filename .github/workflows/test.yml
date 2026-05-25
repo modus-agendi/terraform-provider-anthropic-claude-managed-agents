@@ -112,7 +112,7 @@ jobs:
             -count=1 \
             -timeout 5m \
             ./internal/client/...
-      - uses: codecov/codecov-action@57e3a136b779b570ffcdbf80b3bdc90e7fab3de2 # v6
+      - uses: codecov/codecov-action@e79a6962e0d4c0c17b229090214935d2e33f8354 # v6
         with:
           files: ./coverage-unit.out
           flags: unit
@@ -155,7 +155,7 @@ jobs:
             -parallel 4 \
             -timeout 30m \
             ./internal/provider/...
-      - uses: codecov/codecov-action@57e3a136b779b570ffcdbf80b3bdc90e7fab3de2 # v6
+      - uses: codecov/codecov-action@e79a6962e0d4c0c17b229090214935d2e33f8354 # v6
         if: matrix.terraform == '1.11.*'
         with:
           files: ./coverage-acc.out
