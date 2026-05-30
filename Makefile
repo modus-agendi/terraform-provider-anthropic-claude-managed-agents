@@ -15,7 +15,7 @@ MAKEFLAGS      += --no-print-directory
 
 # ---- Project identity -----------------------------------------------------
 
-NAMESPACE      ?= andasv
+NAMESPACE      ?= modus-agendi
 NAME           ?= anthropic-claude-managed-agents
 BINARY         := terraform-provider-$(NAME)
 PROVIDER_TYPE  := claude-managed-agents

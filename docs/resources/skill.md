@@ -61,8 +61,8 @@ Anthropic's prebuilt skills (`pptx`, `xlsx`, `docx`, `pdf`, etc.) cannot be mana
 terraform {
   required_providers {
     claude-managed-agents = {
-      source  = "andasv/anthropic-claude-managed-agents"
-      version = "~> 0.3"
+      source  = "modus-agendi/anthropic-claude-managed-agents"
+      version = "~> 0.4"
     }
   }
 }

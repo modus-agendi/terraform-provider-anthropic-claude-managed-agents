@@ -9,7 +9,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
-	"github.com/andasv/terraform-provider-anthropic-claude-managed-agents/internal/client"
+	"github.com/modus-agendi/terraform-provider-anthropic-claude-managed-agents/internal/client"
 )
 
 // TestEnvironmentResource_Update_AlwaysErrors locks in the contract that the

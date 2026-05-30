@@ -11,7 +11,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 
-	"github.com/andasv/terraform-provider-anthropic-claude-managed-agents/internal/client"
+	"github.com/modus-agendi/terraform-provider-anthropic-claude-managed-agents/internal/client"
 )
 
 // testResourcePrefix is the name prefix every live-mode test resource must

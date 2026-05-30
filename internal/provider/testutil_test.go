@@ -25,7 +25,7 @@ import (
 // framework would build `registry.terraform.io/hashicorp/<key>` and the test
 // configuration wouldn't match our actual provider address.
 func init() {
-	_ = os.Setenv("TF_ACC_PROVIDER_NAMESPACE", "andasv")
+	_ = os.Setenv("TF_ACC_PROVIDER_NAMESPACE", "modus-agendi")
 }
 
 var testAccProtoV6ProviderFactories = map[string]func() (tfprotov6.ProviderServer, error){

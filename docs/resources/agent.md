@@ -40,8 +40,8 @@ All four nested-config fields (`tools`, `mcp_servers`, `skills`, `multiagent`) a
 terraform {
   required_providers {
     claude-managed-agents = {
-      source  = "andasv/anthropic-claude-managed-agents"
-      version = "~> 0.2"
+      source  = "modus-agendi/anthropic-claude-managed-agents"
+      version = "~> 0.4"
     }
   }
 }

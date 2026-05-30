@@ -3,7 +3,7 @@ package scenarios
 import (
 	"fmt"
 
-	"github.com/andasv/terraform-provider-anthropic-claude-managed-agents/internal/client"
+	"github.com/modus-agendi/terraform-provider-anthropic-claude-managed-agents/internal/client"
 )
 
 // TrajectoryCheck is a deterministic predicate over the recorded session

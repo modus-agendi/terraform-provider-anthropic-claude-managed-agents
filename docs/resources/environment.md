@@ -38,8 +38,8 @@ The upstream API does not expose an update endpoint for environments. Every attr
 terraform {
   required_providers {
     claude-managed-agents = {
-      source  = "andasv/anthropic-claude-managed-agents"
-      version = "~> 0.2"
+      source  = "modus-agendi/anthropic-claude-managed-agents"
+      version = "~> 0.4"
     }
   }
 }
