@@ -60,6 +60,7 @@ endif
 GOLANGCI_LINT_VERSION  := v2.12.2
 TFPLUGINDOCS_VERSION   := v0.20.1
 TFPROVIDERDOCS_VERSION := v0.12.1
+GITLEAKS_VERSION       := v8.30.1
 
 # ---- .env auto-load -------------------------------------------------------
 # Format: simple KEY=VALUE per line; no quotes, no shell substitution.
@@ -230,6 +231,10 @@ lint: ## Run golangci-lint with the project ruleset
 		echo "golangci-lint not found on PATH or in $(LOCAL_BIN); run 'make tools'" ; \
 		exit 1 ; \
 	fi
+
+.PHONY: secret-scan
+secret-scan: ## Scan committed git history for leaked secrets (gitleaks)
+	go run github.com/zricethezav/gitleaks/v8@$(GITLEAKS_VERSION) git --redact --no-banner .
 
 .PHONY: depscheck
 depscheck: ## Verify go.mod / go.sum are tidy
