@@ -18,8 +18,32 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `include_archived=true` so previously-archived orphans become visible.
 
 ### Changed
+- **Breaking: registry namespace moved to `modus-agendi`.** The GitHub
+  repository and Terraform Registry listing moved from the `andasv`
+  namespace to `modus-agendi`. Update your `required_providers` source:
+
+  ```hcl
+  required_providers {
+    claude-managed-agents = {
+      source  = "modus-agendi/anthropic-claude-managed-agents"  # was: andasv/anthropic-claude-managed-agents
+      version = "~> 0.4"
+    }
+  }
+  ```
+
+  The local provider name (`claude-managed-agents`) and all resource type
+  names are **unchanged** — only the registry source string moves. The Go
+  module path is now
+  `github.com/modus-agendi/terraform-provider-anthropic-claude-managed-agents`
+  (affects vendored consumers only).
 - Live and scenarios cron schedules moved from daily to weekly (Mondays
   03:00 / 04:00 UTC).
+- Registry landing page (`docs/index.md`) rewritten via a new
+  `templates/index.md.tmpl` — provider overview, what it manages,
+  authentication, requirements, and repository links — so the Terraform
+  Registry shows more than a one-line description. All example
+  `required_providers` version constraints normalized to `~> 0.4` (the
+  floor after the v0.4.0 registry-slug change).
 
 ## [0.4.0] - 2026-05-15
 

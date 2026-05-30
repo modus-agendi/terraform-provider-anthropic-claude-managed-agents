@@ -17,7 +17,7 @@ the policy will shift to "last two minor lines."
 **Please do not open public GitHub issues for security problems.**
 
 Report privately via GitHub Security Advisories:
-[https://github.com/andasv/terraform-provider-anthropic-claude-managed-agents/security/advisories/new](https://github.com/andasv/terraform-provider-anthropic-claude-managed-agents/security/advisories/new).
+[https://github.com/modus-agendi/terraform-provider-anthropic-claude-managed-agents/security/advisories/new](https://github.com/modus-agendi/terraform-provider-anthropic-claude-managed-agents/security/advisories/new).
 
 If that route is unavailable, email `asvirida123@gmail.com` with the subject
 line `terraform-provider-anthropic-claude-managed-agents: SECURITY`.

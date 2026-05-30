@@ -12,7 +12,7 @@
         "model": "claude-sonnet-4-6",
         "_model_comment": "Bump to claude-opus-4-7 in the web UI if fix quality on a Go provider codebase is mediocre.",
         "sources": [
-          {"git_repository": {"url": "https://github.com/andasv/terraform-provider-claude-managed-agents"}}
+          {"git_repository": {"url": "https://github.com/modus-agendi/terraform-provider-anthropic-claude-managed-agents"}}
         ],
         "allowed_tools": ["Bash", "Read", "Write", "Edit", "Glob", "Grep"]
       },

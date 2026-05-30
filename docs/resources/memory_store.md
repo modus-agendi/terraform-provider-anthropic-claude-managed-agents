@@ -31,8 +31,8 @@ By default, `terraform destroy` archives the store (`POST /v1/memory_stores/{id}
 terraform {
   required_providers {
     claude-managed-agents = {
-      source  = "andasv/anthropic-claude-managed-agents"
-      version = "~> 0.2"
+      source  = "modus-agendi/anthropic-claude-managed-agents"
+      version = "~> 0.4"
     }
   }
 }

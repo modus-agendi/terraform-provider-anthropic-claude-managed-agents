@@ -1,4 +1,4 @@
-module github.com/andasv/terraform-provider-anthropic-claude-managed-agents
+module github.com/modus-agendi/terraform-provider-anthropic-claude-managed-agents
 
 go 1.25.8
 

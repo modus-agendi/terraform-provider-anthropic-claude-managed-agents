@@ -1,8 +1,8 @@
 blank_issues_enabled: false
 contact_links:
   - name: Security vulnerability
-    url: https://github.com/andasv/terraform-provider-anthropic-claude-managed-agents/security/advisories/new
+    url: https://github.com/modus-agendi/terraform-provider-anthropic-claude-managed-agents/security/advisories/new
     about: Report a security issue privately via GitHub Security Advisories.
   - name: Question or discussion
-    url: https://github.com/andasv/terraform-provider-anthropic-claude-managed-agents/discussions
+    url: https://github.com/modus-agendi/terraform-provider-anthropic-claude-managed-agents/discussions
     about: For open-ended questions, design discussion, or scope debates.

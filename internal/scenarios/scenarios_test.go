@@ -10,16 +10,16 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 
-	"github.com/andasv/terraform-provider-anthropic-claude-managed-agents/internal/client"
+	"github.com/modus-agendi/terraform-provider-anthropic-claude-managed-agents/internal/client"
 )
 
 // init sets the namespace plugin-testing uses to construct the implicit
 // required_providers block for each test factory. Matches the provider's
 // real registry namespace so YAML configs can reference
 // `claude-managed-agents` as the local provider name and still resolve
-// to `andasv/anthropic-claude-managed-agents`.
+// to `modus-agendi/anthropic-claude-managed-agents`.
 func init() {
-	_ = os.Setenv("TF_ACC_PROVIDER_NAMESPACE", "andasv")
+	_ = os.Setenv("TF_ACC_PROVIDER_NAMESPACE", "modus-agendi")
 }
 
 // TestScenarios is the live entrypoint. Gated by TF_ACC_SCENARIOS=1 — when

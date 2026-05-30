@@ -17,7 +17,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 	"github.com/hashicorp/terraform-plugin-testing/tfjsonpath"
 
-	"github.com/andasv/terraform-provider-anthropic-claude-managed-agents/internal/client"
+	"github.com/modus-agendi/terraform-provider-anthropic-claude-managed-agents/internal/client"
 )
 
 // writeSkillFixture lays down a minimal skill directory under t.TempDir():
