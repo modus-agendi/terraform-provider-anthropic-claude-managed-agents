@@ -1,5 +1,7 @@
 # terraform-provider-anthropic-claude-managed-agents
 
+[![Terraform Registry](https://img.shields.io/badge/Terraform%20Registry-modus--agendi%2Fanthropic--claude--managed--agents-7B42BC?logo=terraform)](https://registry.terraform.io/providers/modus-agendi/anthropic-claude-managed-agents/latest)
+[![OpenTofu Registry](https://img.shields.io/badge/OpenTofu%20Registry-modus--agendi%2Fanthropic--claude--managed--agents-FFDA18?logo=opentofu&logoColor=black)](https://search.opentofu.org/provider/modus-agendi/anthropic-claude-managed-agents/latest)
 [![CI](https://github.com/modus-agendi/terraform-provider-anthropic-claude-managed-agents/actions/workflows/test.yml/badge.svg)](https://github.com/modus-agendi/terraform-provider-anthropic-claude-managed-agents/actions/workflows/test.yml)
 [![Release](https://github.com/modus-agendi/terraform-provider-anthropic-claude-managed-agents/actions/workflows/release.yml/badge.svg)](https://github.com/modus-agendi/terraform-provider-anthropic-claude-managed-agents/actions/workflows/release.yml)
 [![codecov](https://codecov.io/gh/modus-agendi/terraform-provider-anthropic-claude-managed-agents/graph/badge.svg)](https://codecov.io/gh/modus-agendi/terraform-provider-anthropic-claude-managed-agents)
