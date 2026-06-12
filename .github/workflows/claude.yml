@@ -1,50 +1,47 @@
 name: Claude Code
 
+# Reacts to @claude mentions in issues — and nothing else. Every run is
+# gated on the maintainer's account in the workflow condition itself, so
+# nobody else can start runs that draw on the Claude subscription. There is
+# deliberately no PR-triggered Claude workflow: automated implementation
+# work is handled by claude-issue.yml (label-gated, same actor pin).
 on:
-  issue_comment:
-    types: [created]
-  pull_request_review_comment:
-    types: [created]
   issues:
     types: [opened, assigned]
-  pull_request_review:
-    types: [submitted]
+  issue_comment:
+    types: [created]
+
+# Default to no permissions; the job grants its own minimal set.
+permissions: {}
 
 jobs:
   claude:
+    # github.actor is the account whose action fired the event (issue author
+    # or commenter). Pinning it to the maintainer ignores mentions from
+    # anyone else before any billable work starts — independent of the
+    # action's own write-permission check. The !issue.pull_request guard
+    # keeps PR comment threads out (issue_comment fires for those too).
     if: |
-      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
-      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
-      (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
-      (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))
+      github.actor == 'andasv' &&
+      !github.event.issue.pull_request &&
+      (
+        (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude'))) ||
+        (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude'))
+      )
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: read
-      pull-requests: read
       issues: read
-      id-token: write
-      actions: read # Required for Claude to read CI results on PRs
+      id-token: write # OIDC exchange for the Claude GitHub App token
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 1
 
       - name: Run Claude Code
         id: claude
-        uses: anthropics/claude-code-action@v1
+        uses: anthropics/claude-code-action@0cb4f3e5e764d2e00407d29b6bf0aa9df0976d88 # v1.0.146
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-
-          # This is an optional setting that allows Claude to read CI results on PRs
-          additional_permissions: |
-            actions: read
-
-          # Optional: Give a custom prompt to Claude. If this is not specified, Claude will perform the instructions specified in the comment that tagged it.
-          # prompt: 'Update the pull request description to include a summary of changes.'
-
-          # Optional: Add claude_args to customize behavior and configuration
-          # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
-          # or https://code.claude.com/docs/en/cli-reference for available options
-          # claude_args: '--allowed-tools Bash(gh pr *)'
-
