@@ -658,3 +658,214 @@ type JudgeUsage struct {
 	InputTokens  int `json:"input_tokens"`
 	OutputTokens int `json:"output_tokens"`
 }
+
+// Deployment is the read shape returned by GET /v1/deployments/{id}.
+//
+// A deployment binds an agent to an environment, vaults, mounted resources,
+// initial events, and an optional cron schedule. Each scheduled (or manual)
+// fire produces a DeploymentRun audit record.
+//
+// `status` is `active` or `paused` ONLY — an archived deployment is identified
+// by a non-null ArchivedAt, not a status value. A deployment auto-pauses on
+// certain errors (see PausedReason); `session_rate_limited_error` is the
+// notable exception that does NOT pause (the schedule keeps firing).
+type Deployment struct {
+	ID            string                   `json:"id"`
+	Type          string                   `json:"type"`
+	Name          string                   `json:"name"`
+	Agent         DeploymentAgentRef       `json:"agent"`
+	EnvironmentID string                   `json:"environment_id"`
+	Description   *string                  `json:"description"`
+	Metadata      map[string]string        `json:"metadata"`
+	InitialEvents []DeploymentInitialEvent `json:"initial_events"`
+	Resources     []DeploymentResource     `json:"resources"`
+	Schedule      *DeploymentSchedule      `json:"schedule"`
+	VaultIDs      []string                 `json:"vault_ids"`
+	Status        string                   `json:"status"`
+	PausedReason  *DeploymentPausedReason  `json:"paused_reason"`
+	CreatedAt     time.Time                `json:"created_at"`
+	UpdatedAt     time.Time                `json:"updated_at"`
+	ArchivedAt    *time.Time               `json:"archived_at"`
+}
+
+// DeploymentAgentRef is the resolved agent reference the API always returns
+// for a deployment's `agent` field: id plus the concrete version it pinned.
+// On create/update the API also accepts a bare id string; this provider sends
+// the string form (see DeploymentCreateRequest.Agent).
+type DeploymentAgentRef struct {
+	ID      string `json:"id"`
+	Type    string `json:"type"`
+	Version int    `json:"version"`
+}
+
+// DeploymentInitialEvent is one entry of `initial_events` (1-50 per
+// deployment). Discriminated union on Type:
+//
+//   - "user.message"        — Content carries text/image/document blocks.
+//   - "system.message"      — Content carries text blocks (privileged context).
+//   - "user.define_outcome" — Description (task), Rubric, MaxIterations.
+//
+// Content blocks are kept as raw JSON: the block source shapes are themselves
+// nested unions (base64/url/file image and document sources) that the client
+// passes through verbatim rather than enumerating.
+type DeploymentInitialEvent struct {
+	Type string `json:"type"`
+
+	// user.message + system.message
+	Content []json.RawMessage `json:"content,omitempty"`
+
+	// user.define_outcome
+	Description   string            `json:"description,omitempty"`
+	Rubric        *DeploymentRubric `json:"rubric,omitempty"`
+	MaxIterations *int              `json:"max_iterations,omitempty"`
+}
+
+// DeploymentRubric is the `rubric` of a user.define_outcome event: either an
+// uploaded file (Type "file", FileID) or inline text (Type "text", Content).
+type DeploymentRubric struct {
+	Type    string `json:"type"`
+	FileID  string `json:"file_id,omitempty"`
+	Content string `json:"content,omitempty"`
+}
+
+// DeploymentResource is one entry of `resources` (max 500). Discriminated
+// union on Type:
+//
+//   - "github_repository" — URL + write-only AuthorizationToken + optional
+//     Checkout + MountPath.
+//   - "file"              — FileID + optional MountPath.
+//   - "memory_store"      — MemoryStoreID + optional Access + Instructions.
+//
+// AuthorizationToken is write-only upstream: it is accepted on create/update
+// but NEVER returned on read. The Terraform resource must treat it as a
+// write-only secret (never persisted to state).
+type DeploymentResource struct {
+	Type string `json:"type"`
+
+	// github_repository
+	URL                string              `json:"url,omitempty"`
+	AuthorizationToken string              `json:"authorization_token,omitempty"`
+	Checkout           *DeploymentCheckout `json:"checkout,omitempty"`
+	MountPath          string              `json:"mount_path,omitempty"`
+
+	// file
+	FileID string `json:"file_id,omitempty"`
+
+	// memory_store
+	MemoryStoreID string `json:"memory_store_id,omitempty"`
+	Access        string `json:"access,omitempty"`
+	Instructions  string `json:"instructions,omitempty"`
+}
+
+// DeploymentCheckout pins a github_repository resource to a branch (Type
+// "branch", Name) or a commit (Type "commit", SHA).
+type DeploymentCheckout struct {
+	Type string `json:"type"`
+	Name string `json:"name,omitempty"`
+	SHA  string `json:"sha,omitempty"`
+}
+
+// DeploymentSchedule is the optional cron schedule. Expression is a 5-field
+// POSIX cron string (no "@daily"-style shortcuts); Timezone is an IANA name.
+// LastRunAt and UpcomingRunsAt are read-only enrichment the API adds on read.
+type DeploymentSchedule struct {
+	Type           string      `json:"type"`
+	Expression     string      `json:"expression"`
+	Timezone       string      `json:"timezone"`
+	LastRunAt      *time.Time  `json:"last_run_at,omitempty"`
+	UpcomingRunsAt []time.Time `json:"upcoming_runs_at,omitempty"`
+}
+
+// DeploymentPausedReason explains why a deployment is paused: a manual pause
+// (Type "manual") or an automatic error pause (Type "error", Error set).
+type DeploymentPausedReason struct {
+	Type  string                 `json:"type"`
+	Error *DeploymentPausedError `json:"error,omitempty"`
+}
+
+// DeploymentPausedError is the typed error that auto-paused a deployment. Type
+// is one of the run-error taxonomy values (e.g. "vault_not_found_error").
+type DeploymentPausedError struct {
+	Type    string `json:"type"`
+	Message string `json:"message,omitempty"`
+}
+
+// DeploymentCreateRequest is the POST /v1/deployments body.
+//
+// Agent is raw JSON so the caller controls the string-vs-object form; this
+// provider sends a bare id string (JSON-encoded), pinning the agent's latest
+// version. Required: Name, Agent, EnvironmentID, InitialEvents (1-50).
+type DeploymentCreateRequest struct {
+	Name          string                   `json:"name"`
+	Agent         json.RawMessage          `json:"agent"`
+	EnvironmentID string                   `json:"environment_id"`
+	InitialEvents []DeploymentInitialEvent `json:"initial_events"`
+	Description   *string                  `json:"description,omitempty"`
+	Metadata      map[string]string        `json:"metadata,omitempty"`
+	Resources     []DeploymentResource     `json:"resources,omitempty"`
+	Schedule      *DeploymentSchedule      `json:"schedule,omitempty"`
+	VaultIDs      []string                 `json:"vault_ids,omitempty"`
+}
+
+// DeploymentUpdateRequest is the PATCH /v1/deployments/{id} body. Every field
+// is optional; an omitted field is left unchanged. There is no version/etag —
+// updates are last-write-wins.
+//
+// Nullable-clear semantics use json.RawMessage so the caller can send the
+// literal `null` to clear (Description, Schedule). Metadata uses
+// map[string]*string: a nil value for a key deletes that key server-side.
+// Slice pointers (InitialEvents, Resources, VaultIDs) distinguish "unchanged"
+// (nil) from "replace with this exact list" (non-nil, possibly empty).
+type DeploymentUpdateRequest struct {
+	Name          *string                   `json:"name,omitempty"`
+	Agent         json.RawMessage           `json:"agent,omitempty"`
+	EnvironmentID *string                   `json:"environment_id,omitempty"`
+	InitialEvents *[]DeploymentInitialEvent `json:"initial_events,omitempty"`
+	Description   json.RawMessage           `json:"description,omitempty"`
+	Metadata      map[string]*string        `json:"metadata,omitempty"`
+	Resources     *[]DeploymentResource     `json:"resources,omitempty"`
+	Schedule      json.RawMessage           `json:"schedule,omitempty"`
+	VaultIDs      *[]string                 `json:"vault_ids,omitempty"`
+}
+
+// DeploymentList is the cursor-paginated envelope for GET /v1/deployments.
+// Unlike the before_id/after_id envelope (ListResponse) used by agents and
+// environments, deployments and deployment_runs paginate with an opaque
+// `page` cursor echoed back as `next_page`.
+type DeploymentList struct {
+	Data     []Deployment `json:"data"`
+	NextPage *string      `json:"next_page"`
+}
+
+// DeploymentRun is one append-only audit record of a deployment fire. Exactly
+// one of SessionID (success) or Error (failure) is non-null.
+type DeploymentRun struct {
+	ID             string                   `json:"id"`
+	Type           string                   `json:"type"`
+	Agent          DeploymentAgentRef       `json:"agent"`
+	DeploymentID   string                   `json:"deployment_id"`
+	CreatedAt      time.Time                `json:"created_at"`
+	SessionID      *string                  `json:"session_id"`
+	Error          *DeploymentRunError      `json:"error"`
+	TriggerContext DeploymentTriggerContext `json:"trigger_context"`
+}
+
+// DeploymentRunError is the typed failure reason on a run. Type is one of the
+// 15 run-error taxonomy values; Message is human-readable detail.
+type DeploymentRunError struct {
+	Type    string `json:"type"`
+	Message string `json:"message"`
+}
+
+// DeploymentTriggerContext records what fired a run: the cron schedule (Type
+// "schedule", ScheduledAt set) or a manual session create (Type "manual").
+type DeploymentTriggerContext struct {
+	Type        string     `json:"type"`
+	ScheduledAt *time.Time `json:"scheduled_at,omitempty"`
+}
+
+// DeploymentRunList is the cursor-paginated envelope for GET /v1/deployment_runs.
+type DeploymentRunList struct {
+	Data     []DeploymentRun `json:"data"`
+	NextPage *string         `json:"next_page"`
+}
