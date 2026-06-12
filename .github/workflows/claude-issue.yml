@@ -33,7 +33,7 @@ jobs:
       github.event.label.name == 'claude-fix' &&
       github.event.sender.login == 'andasv'
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
     permissions:
       contents: write # push the work branch
       pull-requests: write # open the PR
@@ -79,13 +79,18 @@ jobs:
                issue asks for one.
             3. Verify with the repo's own gates: `make build`, `make lint`,
                `make test`. Fix what they surface.
-            4. Commit on a branch named `claude/issue-${{ github.event.issue.number }}`,
-               push it, and open a PR with `gh pr create` that references the
-               issue with "Closes #${{ github.event.issue.number }}".
-            5. If the issue is too ambiguous or too large to complete, do NOT
-               open a partial PR — comment your analysis and open questions
-               on the issue instead.
+            4. Work on a branch named `claude/issue-${{ github.event.issue.number }}`.
+               Push it and open a DRAFT PR with `gh pr create --draft`
+               referencing "Closes #${{ github.event.issue.number }}" as soon
+               as you have a first coherent commit — do not wait until the
+               end. Commit and push after every milestone so partial work
+               survives if this run is cut off by a turn or time limit.
+            5. When the work is complete and verified, mark the PR ready
+               with `gh pr ready`.
+            6. If the issue is too ambiguous to even start, do NOT open a
+               PR — comment your analysis and open questions on the issue
+               instead.
           claude_args: |
             --model opus
-            --max-turns 100
-            --allowedTools "Read,Edit,Write,Glob,Grep,Bash(make:*),Bash(go:*),Bash(gofmt:*),Bash(git:*),Bash(gh issue view:*),Bash(gh issue comment:*),Bash(gh pr create:*),Bash(gh pr view:*)"
+            --max-turns 250
+            --allowedTools "Read,Edit,Write,Glob,Grep,Bash(make:*),Bash(go:*),Bash(gofmt:*),Bash(git:*),Bash(gh issue view:*),Bash(gh issue comment:*),Bash(gh pr create:*),Bash(gh pr view:*),Bash(gh pr ready:*)"
