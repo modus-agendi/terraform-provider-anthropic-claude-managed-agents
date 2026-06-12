@@ -45,3 +45,8 @@ jobs:
         uses: anthropics/claude-code-action@0cb4f3e5e764d2e00407d29b6bf0aa9df0976d88 # v1.0.146
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # Q&A mentions don't need Opus; sonnet burns far less of the
+          # subscription usage window. Implementation runs (claude-issue.yml)
+          # use opus.
+          claude_args: |
+            --model sonnet
