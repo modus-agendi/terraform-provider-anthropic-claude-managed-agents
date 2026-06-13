@@ -126,7 +126,7 @@ Optional:
 
 - `allow_mcp_servers` (Boolean) When `type = "limited"`, whether the agent may call out to MCP servers. Must be unset (null) when `type = "unrestricted"`.
 - `allow_package_managers` (Boolean) When `type = "limited"`, whether the agent may run package-manager installs. Must be unset (null) when `type = "unrestricted"`.
-- `allowed_hosts` (List of String) Bare hostnames the agent may reach (e.g. `api.example.com`). URL schemes are rejected by the upstream API. Only valid when `type = "limited"`.
+- `allowed_hosts` (List of String) Bare hostnames the agent may reach (e.g. `api.example.com`). URL schemes are rejected by the upstream API. Only valid when `type = "limited"`. Omit the attribute to leave it unset; an explicit empty list (`[]`) is rejected (the API normalizes empty to null, which Terraform cannot represent consistently).
 
 
 <a id="nestedatt--config--packages"></a>

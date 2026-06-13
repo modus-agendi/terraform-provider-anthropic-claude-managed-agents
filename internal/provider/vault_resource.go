@@ -11,6 +11,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/modus-agendi/terraform-provider-anthropic-claude-managed-agents/internal/client"
@@ -48,9 +49,10 @@ func (r *vaultResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 				Required:            true,
 			},
 			"metadata": schema.MapAttribute{
-				MarkdownDescription: "Arbitrary string-string labels. Full-replace on update: removing a key from your HCL deletes it server-side.",
+				MarkdownDescription: "Arbitrary string-string labels. Full-replace on update: removing a key from your HCL deletes it server-side. Omit the attribute to leave it unset; an explicit empty map (`{}`) is rejected.",
 				Optional:            true,
 				ElementType:         types.StringType,
+				Validators:          []validator.Map{nonEmptyMap()},
 			},
 			"delete_on_destroy": schema.BoolAttribute{
 				MarkdownDescription: "When `true`, `terraform destroy` issues `DELETE /v1/vaults/{id}` which permanently removes the vault and cascades through every credential. When `false` (the default), destroy archives the vault, preserving the audit trail while purging secrets and freeing the bound MCP server URLs.",

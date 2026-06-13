@@ -11,6 +11,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/objectplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/modus-agendi/terraform-provider-anthropic-claude-managed-agents/internal/client"
@@ -78,9 +79,10 @@ func (r *environmentResource) Schema(_ context.Context, _ resource.SchemaRequest
 								Required:            true,
 							},
 							"allowed_hosts": schema.ListAttribute{
-								MarkdownDescription: "Bare hostnames the agent may reach (e.g. `api.example.com`). URL schemes are rejected by the upstream API. Only valid when `type = \"limited\"`.",
+								MarkdownDescription: "Bare hostnames the agent may reach (e.g. `api.example.com`). URL schemes are rejected by the upstream API. Only valid when `type = \"limited\"`. Omit the attribute to leave it unset; an explicit empty list (`[]`) is rejected (the API normalizes empty to null, which Terraform cannot represent consistently).",
 								Optional:            true,
 								ElementType:         types.StringType,
+								Validators:          []validator.List{nonEmptyList()},
 							},
 							"allow_mcp_servers": schema.BoolAttribute{
 								MarkdownDescription: "When `type = \"limited\"`, whether the agent may call out to MCP servers. Must be unset (null) when `type = \"unrestricted\"`.",

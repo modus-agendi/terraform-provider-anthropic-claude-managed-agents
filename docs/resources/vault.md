@@ -71,7 +71,7 @@ output "alice_vault_id" {
 ### Optional
 
 - `delete_on_destroy` (Boolean) When `true`, `terraform destroy` issues `DELETE /v1/vaults/{id}` which permanently removes the vault and cascades through every credential. When `false` (the default), destroy archives the vault, preserving the audit trail while purging secrets and freeing the bound MCP server URLs.
-- `metadata` (Map of String) Arbitrary string-string labels. Full-replace on update: removing a key from your HCL deletes it server-side.
+- `metadata` (Map of String) Arbitrary string-string labels. Full-replace on update: removing a key from your HCL deletes it server-side. Omit the attribute to leave it unset; an explicit empty map (`{}`) is rejected.
 
 ### Read-Only
 

@@ -13,6 +13,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
@@ -67,14 +68,16 @@ func (r *deploymentResource) Schema(_ context.Context, _ resource.SchemaRequest,
 				Optional:            true,
 			},
 			"metadata": schema.MapAttribute{
-				MarkdownDescription: "Arbitrary string-string labels (max 16 keys). Merge semantics: removing a key from HCL deletes it server-side.",
+				MarkdownDescription: "Arbitrary string-string labels (max 16 keys). Merge semantics: removing a key from HCL deletes it server-side. Omit the attribute to leave it unset; an explicit empty map (`{}`) is rejected.",
 				Optional:            true,
 				ElementType:         types.StringType,
+				Validators:          []validator.Map{nonEmptyMap()},
 			},
 			"vault_ids": schema.ListAttribute{
-				MarkdownDescription: "Vault ids whose credentials are mounted into each session (max 50). Mutable.",
+				MarkdownDescription: "Vault ids whose credentials are mounted into each session (max 50). Mutable. Omit the attribute to leave it unset; an explicit empty list (`[]`) is rejected.",
 				Optional:            true,
 				ElementType:         types.StringType,
+				Validators:          []validator.List{nonEmptyList()},
 			},
 			"desired_status": schema.StringAttribute{
 				MarkdownDescription: "Intended run state: `active` or `paused`. Defaults to `active`. Changing it pauses or resumes the deployment via the pause/resume endpoints. This is your INTENT — it is independent of the observed `status`, so an automatic error-pause (which moves `status` to `paused` while `desired_status` stays `active`) does NOT cause Terraform to fight the API. To resume after an error-pause, run `terraform apply` once the underlying cause is fixed.",
@@ -132,6 +135,7 @@ func (r *deploymentResource) Schema(_ context.Context, _ resource.SchemaRequest,
 			"resources": schema.ListNestedAttribute{
 				MarkdownDescription: deploymentResourcesMarkdown,
 				Optional:            true,
+				Validators:          []validator.List{nonEmptyList()},
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
 						"type": schema.StringAttribute{
