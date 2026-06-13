@@ -52,6 +52,13 @@ signs:
       - "${artifact}"
 
 release:
+  # Tags carrying a pre-release segment (e.g. v0.5.0-rc.1, v1.0.0-beta) are
+  # published as GitHub pre-releases, so an RC never takes the "Latest" badge
+  # from the newest stable tag. The Terraform/OpenTofu Registries already key
+  # pre-release status off the semver string; this keeps the GitHub releases
+  # page consistent with that. Without it, goreleaser defaults to a full
+  # release and an RC has to be re-flagged by hand.
+  prerelease: auto
   extra_files:
     - glob: "terraform-registry-manifest.json"
       name_template: "{{ .ProjectName }}_{{ .Version }}_manifest.json"
