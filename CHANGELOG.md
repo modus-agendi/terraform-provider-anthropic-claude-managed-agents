@@ -6,6 +6,11 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+- Deployment `schedule.expression` is now validated as a 5-field POSIX cron at
+  plan time. A malformed expression or an `@daily`-style shortcut (which the
+  API rejects) fails with a clear error instead of an opaque apply-time failure.
+
 ### Fixed
 - An explicit empty collection on a user-settable optional attribute now fails
   at plan time with a clear, actionable error instead of the cryptic "Provider
@@ -17,6 +22,11 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `vault_ids` / `resources` / `metadata`, and `claude-managed-agents_agent` /
   `claude-managed-agents_vault` `metadata`. Omitting the attribute, or providing
   at least one element, both work as before.
+
+### Testing
+- Wider edge-case coverage: the previously-missing exhaustive skill no-drift
+  sweep, a `vault_credential` 404-on-read (external removal → recreate) test,
+  and unit + acceptance tests for the new cron validator.
 
 ## [1.0.0] - 2026-06-13
 

@@ -193,7 +193,7 @@ func (r *deploymentResource) Schema(_ context.Context, _ resource.SchemaRequest,
 				Optional:            true,
 				Attributes: map[string]schema.Attribute{
 					"type":       schema.StringAttribute{Required: true, MarkdownDescription: "Currently only `cron`."},
-					"expression": schema.StringAttribute{Required: true, MarkdownDescription: "5-field POSIX cron (e.g. `0 3 * * *`). No `@daily`-style shortcuts."},
+					"expression": schema.StringAttribute{Required: true, MarkdownDescription: "5-field POSIX cron (e.g. `0 3 * * *`). No `@daily`-style shortcuts.", Validators: []validator.String{fiveFieldCron()}},
 					"timezone":   schema.StringAttribute{Required: true, MarkdownDescription: "IANA timezone (e.g. `UTC`, `America/Los_Angeles`)."},
 				},
 			},
