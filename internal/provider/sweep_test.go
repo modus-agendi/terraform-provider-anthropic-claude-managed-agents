@@ -51,6 +51,66 @@ func init() {
 		Name: "claude-managed-agents_skill",
 		F:    sweepSkills,
 	})
+	resource.AddTestSweepers("claude-managed-agents_deployment", &resource.Sweeper{
+		Name: "claude-managed-agents_deployment",
+		F:    sweepDeployments,
+	})
+}
+
+// sweepDeployments archives any deployment whose name starts with
+// tf-acc-test- and was created more than sweepAgeThreshold ago. Deployments
+// paginate with an opaque page cursor (next_page), unlike the before/after_id
+// list endpoints.
+func sweepDeployments(_ string) error {
+	apiKey := os.Getenv("ANTHROPIC_API_KEY")
+	if apiKey == "" {
+		log.Println("[INFO] ANTHROPIC_API_KEY not set; deployment sweeper is a no-op")
+		return nil
+	}
+
+	c, err := client.New(client.Config{
+		APIKey:    apiKey,
+		UserAgent: "terraform-provider-anthropic-claude-managed-agents/sweeper",
+	})
+	if err != nil {
+		return fmt.Errorf("deployment sweeper: build client: %w", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	var (
+		cursor       string
+		swept        int
+		skippedYoung int
+	)
+	for {
+		page, err := c.ListDeployments(ctx, client.ListDeploymentsParams{Limit: 100, Page: cursor})
+		if err != nil {
+			return fmt.Errorf("deployment sweeper: list: %w", err)
+		}
+		for _, d := range page.Data {
+			if !strings.HasPrefix(d.Name, testResourcePrefix) {
+				continue
+			}
+			if time.Since(d.CreatedAt) < sweepAgeThreshold {
+				skippedYoung++
+				continue
+			}
+			if err := c.ArchiveDeployment(ctx, d.ID); err != nil && !client.IsNotFound(err) {
+				return fmt.Errorf("deployment sweeper: archive %s: %w", d.ID, err)
+			}
+			log.Printf("[INFO] swept deployment %s (%s)", d.ID, d.Name)
+			swept++
+		}
+		if page.NextPage == nil || *page.NextPage == "" {
+			break
+		}
+		cursor = *page.NextPage
+	}
+
+	log.Printf("[INFO] deployment sweeper finished: archived=%d skipped_young=%d", swept, skippedYoung)
+	return nil
 }
 
 // sweepAgents archives any agent whose name starts with `tf-acc-test-` and

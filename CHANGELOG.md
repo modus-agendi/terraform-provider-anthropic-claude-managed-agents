@@ -6,6 +6,31 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+- **`claude-managed-agents_deployment` resource** plus
+  `claude-managed-agents_deployment` and `claude-managed-agents_deployment_runs`
+  data sources, covering the Deployments beta API
+  (`managed-agents-2026-04-01`). A deployment binds an agent to an
+  environment, vaults, mounted resources, initial events, and an optional
+  cron schedule.
+  - Pause/resume is modelled with a writable `desired_status`
+    (`active` / `paused`) decoupled from the observed `status`, so an
+    automatic error-pause does not cause Terraform to fight the API.
+    Inspect `paused_reason` (a typed discriminated union), fix the cause,
+    then re-apply to resume.
+  - `initial_events` (1-50) supports the `user.message`, `system.message`,
+    and `user.define_outcome` variants; editing it forces replacement (the
+    API does not patch events in place).
+  - `resources` (max 500) supports `github_repository`, `file`, and
+    `memory_store` mounts. The github `authorization_token` is a TF 1.11
+    write-only attribute — never stored in state; bump
+    `authorization_token_wo_version` to re-send it on rotation.
+  - Destroy archives the deployment (one-way; the API has no DELETE).
+    Updates are last-write-wins `PATCH` (no optimistic-concurrency version).
+  - The `deployment_runs` data source lists append-only run audit records
+    with filters (`deployment_id`, `trigger_type`, `has_error`) and surfaces
+    the typed run-error taxonomy.
+
 ### Fixed
 - Sweepers now run for every registered resource type (agent, environment,
   memory_store, vault, skill) in CI workflows and the `make sweep` target.

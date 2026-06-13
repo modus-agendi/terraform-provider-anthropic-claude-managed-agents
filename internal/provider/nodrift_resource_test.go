@@ -227,6 +227,77 @@ resource "claude-managed-agents_vault_credential" "oauth" {
 	})
 }
 
+func TestAccDeploymentResource_noDrift(t *testing.T) {
+	name := testAgentName("nodrift-dep")
+	runNoDrift(t, func() string {
+		return fmt.Sprintf(`%s
+
+resource "claude-managed-agents_agent" "a" {
+  name  = "%s-agent"
+  model = "claude-opus-4-7"
+}
+
+resource "claude-managed-agents_environment" "e" {
+  name = "%s-env"
+  config = {
+    type       = "cloud"
+    networking = { type = "unrestricted" }
+  }
+}
+
+# Exhaustive deployment: every nullable, every nested variant, the write-only
+# github token, and a paused desired_status.
+resource "claude-managed-agents_deployment" "d" {
+  name           = %q
+  agent          = claude-managed-agents_agent.a.id
+  environment_id = claude-managed-agents_environment.e.id
+  description    = "Exhaustive no-drift subject."
+  desired_status = "paused"
+
+  metadata = {
+    team = "platform"
+    tier = "gold"
+  }
+
+  vault_ids = ["vault_FAKE1", "vault_FAKE2"]
+
+  initial_events = [
+    { type = "user.message", content = jsonencode([{ type = "text", text = "Run the digest." }]) },
+    { type = "system.message", content = jsonencode([{ type = "text", text = "You are precise." }]) },
+    {
+      type           = "user.define_outcome"
+      description    = "Summarize the inbox"
+      max_iterations = 4
+      rubric         = { type = "text", content = "Cite every source." }
+    },
+  ]
+
+  resources = [
+    {
+      type                           = "github_repository"
+      url                            = "https://github.com/acme/widgets"
+      authorization_token            = "ghp_not_in_state"
+      authorization_token_wo_version = 1
+      checkout                       = { type = "commit", sha = "abc123def456" }
+      mount_path                     = "/workspace/widgets"
+    },
+    {
+      type            = "memory_store"
+      memory_store_id = "memstore_FAKE"
+      access          = "read_write"
+      instructions    = "Persist findings here."
+    },
+  ]
+
+  schedule = {
+    type       = "cron"
+    expression = "0 3 * * *"
+    timezone   = "UTC"
+  }
+}`, providerConfig(), name, name, name)
+	})
+}
+
 func TestAccMemoryStoreResource_noDrift(t *testing.T) {
 	name := testAgentName("nodrift-mem")
 	runNoDrift(t, func() string {
