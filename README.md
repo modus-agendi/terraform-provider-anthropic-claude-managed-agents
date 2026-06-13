@@ -1,12 +1,5 @@
 # terraform-provider-anthropic-claude-managed-agents
 
-[![Terraform Registry](https://img.shields.io/badge/Terraform%20Registry-modus--agendi%2Fanthropic--claude--managed--agents-7B42BC?logo=terraform)](https://registry.terraform.io/providers/modus-agendi/anthropic-claude-managed-agents/latest)
-[![OpenTofu Registry](https://img.shields.io/badge/OpenTofu%20Registry-modus--agendi%2Fanthropic--claude--managed--agents-FFDA18?logo=opentofu&logoColor=black)](https://search.opentofu.org/provider/modus-agendi/anthropic-claude-managed-agents/latest)
-[![CI](https://github.com/modus-agendi/terraform-provider-anthropic-claude-managed-agents/actions/workflows/test.yml/badge.svg)](https://github.com/modus-agendi/terraform-provider-anthropic-claude-managed-agents/actions/workflows/test.yml)
-[![Release](https://github.com/modus-agendi/terraform-provider-anthropic-claude-managed-agents/actions/workflows/release.yml/badge.svg)](https://github.com/modus-agendi/terraform-provider-anthropic-claude-managed-agents/actions/workflows/release.yml)
-[![codecov](https://codecov.io/gh/modus-agendi/terraform-provider-anthropic-claude-managed-agents/graph/badge.svg)](https://codecov.io/gh/modus-agendi/terraform-provider-anthropic-claude-managed-agents)
-[![License: MPL 2.0](https://img.shields.io/badge/license-MPL%202.0-blue.svg)](https://www.mozilla.org/MPL/2.0/)
-
 > ## ⚠️ Not for production use — learning & prototyping only
 >
 > **This is an experimental, community-built project intended solely for learning, experimentation, and prototyping. It is NOT intended, tested, or supported for production use.**
@@ -14,6 +7,13 @@
 > It is provided **"AS IS", without warranty of any kind**, express or implied. **You use it entirely at your own risk.** The author(s) and contributors accept **no liability** for any damage, data loss, downtime, cost, security incident, or other harm arising from its use. The "1.0.0" version number denotes API/schema stability under SemVer — it is **not** a statement of production-readiness or fitness for any purpose.
 >
 > See the [LICENSE](LICENSE) (MPL 2.0, sections 6 & 7) for the full warranty disclaimer and limitation of liability.
+
+[![Terraform Registry](https://img.shields.io/badge/Terraform%20Registry-modus--agendi%2Fanthropic--claude--managed--agents-7B42BC?logo=terraform)](https://registry.terraform.io/providers/modus-agendi/anthropic-claude-managed-agents/latest)
+[![OpenTofu Registry](https://img.shields.io/badge/OpenTofu%20Registry-modus--agendi%2Fanthropic--claude--managed--agents-FFDA18?logo=opentofu&logoColor=black)](https://search.opentofu.org/provider/modus-agendi/anthropic-claude-managed-agents/latest)
+[![CI](https://github.com/modus-agendi/terraform-provider-anthropic-claude-managed-agents/actions/workflows/test.yml/badge.svg)](https://github.com/modus-agendi/terraform-provider-anthropic-claude-managed-agents/actions/workflows/test.yml)
+[![Release](https://github.com/modus-agendi/terraform-provider-anthropic-claude-managed-agents/actions/workflows/release.yml/badge.svg)](https://github.com/modus-agendi/terraform-provider-anthropic-claude-managed-agents/actions/workflows/release.yml)
+[![codecov](https://codecov.io/gh/modus-agendi/terraform-provider-anthropic-claude-managed-agents/graph/badge.svg)](https://codecov.io/gh/modus-agendi/terraform-provider-anthropic-claude-managed-agents)
+[![License: MPL 2.0](https://img.shields.io/badge/license-MPL%202.0-blue.svg)](https://www.mozilla.org/MPL/2.0/)
 
 A Terraform / OpenTofu provider for **Anthropic Claude Managed Agents** — declaratively manage agents (with tools, MCP servers, skills, and multiagent coordination), environments, vaults, custom skills, and memory stores from Terraform configurations.
 
