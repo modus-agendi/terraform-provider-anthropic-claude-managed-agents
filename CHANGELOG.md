@@ -6,6 +6,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-06-13
+
 ### Added
 - **L5 behavioral scenarios for deployments.** The scenario harness gained
   three `kind`s (`agent` — the original; `deployment`; `lifecycle`). Deployment
@@ -54,6 +56,10 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Corrected the `claude-managed-agents_deployment` `id` attribute description:
   ids use the `depl_…` prefix (confirmed against the live API), not
   `deployment_…` as the schema text previously stated. Docs-only.
+
+## [0.4.1] - 2026-05-30
+
+### Fixed
 - Sweepers now run for every registered resource type (agent, environment,
   memory_store, vault, skill) in CI workflows and the `make sweep` target.
   Previously only `claude-managed-agents_agent` was swept, letting test-only
@@ -455,7 +461,9 @@ v0.3.0 is a no-op for users.
   httptest server by default; live API runs are opt-in via `TF_ACC_LIVE=1`).
 - GitHub Actions workflows for CI and release.
 
-[Unreleased]: https://github.com/andasv/terraform-provider-claude-managed-agents/compare/v0.2.2...HEAD
+[Unreleased]: https://github.com/modus-agendi/terraform-provider-anthropic-claude-managed-agents/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/modus-agendi/terraform-provider-anthropic-claude-managed-agents/compare/v0.4.1...v0.5.0
+[0.4.1]: https://github.com/modus-agendi/terraform-provider-anthropic-claude-managed-agents/compare/v0.4.0...v0.4.1
 [0.2.2]: https://github.com/andasv/terraform-provider-claude-managed-agents/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/andasv/terraform-provider-claude-managed-agents/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/andasv/terraform-provider-claude-managed-agents/compare/v0.1.0...v0.2.0
