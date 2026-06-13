@@ -97,6 +97,27 @@ func (c *Client) ResumeDeployment(ctx context.Context, id string) (*Deployment, 
 	return &out, nil
 }
 
+// TriggerDeployment issues POST /v1/deployments/{id}/run, firing the
+// deployment immediately (outside its cron schedule) and creating a manual
+// run. The returned DeploymentRun carries the new SessionID on success (with
+// trigger_context.type == "manual"), or a typed Error if session creation
+// failed (e.g. a referenced resource was archived).
+//
+// This endpoint is not in the published SDK reference; it was confirmed by
+// live probe. It is used by the L5 scenario harness to drive a deployment
+// behaviorally without waiting for the 1-hour-minimum cron schedule.
+func (c *Client) TriggerDeployment(ctx context.Context, id string) (*DeploymentRun, error) {
+	if id == "" {
+		return nil, fmt.Errorf("client.TriggerDeployment: id is required")
+	}
+	var out DeploymentRun
+	path := "/v1/deployments/" + url.PathEscape(id) + "/run"
+	if err := c.do(ctx, http.MethodPost, path, nil, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // ListDeployments issues GET /v1/deployments. Pagination is cursor-based:
 // pass the previous response's NextPage as params.Page to fetch the next page.
 func (c *Client) ListDeployments(ctx context.Context, params ListDeploymentsParams) (*DeploymentList, error) {

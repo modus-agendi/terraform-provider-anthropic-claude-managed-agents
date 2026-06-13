@@ -1,0 +1,38 @@
+name: deployment_pause_resume
+kind: lifecycle
+timeout: 2m
+
+# Lifecycle coverage: pause then resume the deployment via the dedicated
+# endpoints and assert the status + paused_reason transitions. No session, no
+# judge, no tokens. This overlaps L3 client-behavior coverage but is surfaced
+# at L5 alongside the other deployment scenarios for a single behavioral view
+# of the resource.
+terraform_config: |
+  resource "claude-managed-agents_environment" "sandbox" {
+    name = "tf-acc-test-scenarios-deploy-life-env"
+    config = {
+      type       = "cloud"
+      networking = { type = "unrestricted" }
+    }
+  }
+
+  resource "claude-managed-agents_agent" "idle" {
+    name  = "tf-acc-test-scenarios-deploy-life"
+    model = "claude-haiku-4-5-20251001"
+  }
+
+  resource "claude-managed-agents_deployment" "target" {
+    name           = "tf-acc-test-scenarios-deploy-life"
+    agent          = claude-managed-agents_agent.idle.id
+    environment_id = claude-managed-agents_environment.sandbox.id
+
+    initial_events = [
+      {
+        type    = "user.message"
+        content = jsonencode([{ type = "text", text = "hello" }])
+      }
+    ]
+  }
+
+lifecycle_checks:
+  - require_pause_resume_cycle: true

@@ -55,6 +55,28 @@ type Scenario struct {
 	// registered check name (see checks.go).
 	TrajectoryChecks []CheckSpec `yaml:"trajectory_checks"`
 
+	// Kind selects the scenario shape: "agent" (default — open a session
+	// against claude-managed-agents_agent.target), "deployment" (fire
+	// claude-managed-agents_deployment.target via a manual run and observe
+	// the resulting session + run record), or "lifecycle" (drive deployment
+	// pause/resume client ops; no session/judge).
+	Kind string `yaml:"kind"`
+	// OutcomeDescription is the judge's TASK line for deployment scenarios
+	// whose session is driven by the deployment's own initial_events (so
+	// there is no `question`). Ignored for agent scenarios.
+	OutcomeDescription string `yaml:"outcome_description"`
+	// RunChecks assert over the DeploymentRun produced by a manual trigger
+	// (deployment kind only). Single-key maps keyed by a registered
+	// run-check name (see checks.go runCheckRegistry).
+	RunChecks []CheckSpec `yaml:"run_checks"`
+	// LifecycleChecks drive + assert deployment lifecycle ops (lifecycle
+	// kind only). Single-key maps keyed by a registered lifecycle-check name.
+	LifecycleChecks []CheckSpec `yaml:"lifecycle_checks"`
+	// PreRunArchive, when set on a deployment scenario, names a deployment
+	// dependency to archive out-of-band BEFORE the manual trigger, to drive
+	// a run-time error path. Currently only "environment" is supported.
+	PreRunArchive string `yaml:"pre_run_archive"`
+
 	// sourcePath is the on-disk path the scenario was loaded from. Set
 	// by Load; useful for error messages and test labels.
 	sourcePath string
@@ -83,6 +105,9 @@ func Load(path string) (*Scenario, error) {
 		return nil, fmt.Errorf("scenarios.Load %s: yaml unmarshal: %w", path, err)
 	}
 	s.sourcePath = path
+	if s.Kind == "" {
+		s.Kind = "agent"
+	}
 	// Substitute ${SCENARIO_DIR} → absolute path to the YAML's
 	// directory so resources like claude-managed-agents_skill can
 	// reference fixture dirs portably across machines. Done before
@@ -155,12 +180,52 @@ func (s *Scenario) validate() error {
 	if s.TerraformConfig == "" {
 		return fmt.Errorf("missing required field: terraform_config")
 	}
-	if s.Question == "" {
-		return fmt.Errorf("missing required field: question")
+
+	switch s.Kind {
+	case "agent":
+		if s.Question == "" {
+			return fmt.Errorf("missing required field: question")
+		}
+		if s.Rubric == "" {
+			return fmt.Errorf("missing required field: rubric")
+		}
+	case "deployment":
+		// question / outcome_description / rubric are optional: an
+		// error-path scenario fires a run that never starts a session, so
+		// it has nothing to judge. But a scenario WITH a rubric needs a
+		// TASK line for the judge.
+		if s.Rubric != "" && s.Question == "" && s.OutcomeDescription == "" {
+			return fmt.Errorf("deployment scenario with a rubric must set question or outcome_description (the judge TASK)")
+		}
+		if s.PreRunArchive != "" && s.PreRunArchive != "environment" {
+			return fmt.Errorf("pre_run_archive: only \"environment\" is supported, got %q", s.PreRunArchive)
+		}
+		if err := buildAndDiscardRunChecks(s.RunChecks); err != nil {
+			return err
+		}
+	case "lifecycle":
+		if len(s.LifecycleChecks) == 0 {
+			return fmt.Errorf("lifecycle scenario requires at least one lifecycle_checks entry")
+		}
+		if s.Question != "" || s.Rubric != "" {
+			return fmt.Errorf("lifecycle scenario must not set question/rubric (no session or judge)")
+		}
+		if err := buildAndDiscardLifecycleChecks(s.LifecycleChecks); err != nil {
+			return err
+		}
+	default:
+		return fmt.Errorf("unknown kind %q (valid: agent, deployment, lifecycle)", s.Kind)
 	}
-	if s.Rubric == "" {
-		return fmt.Errorf("missing required field: rubric")
+
+	if s.Kind != "deployment" && len(s.RunChecks) > 0 {
+		return fmt.Errorf("run_checks are only valid on deployment scenarios")
 	}
+	if s.Kind != "lifecycle" && len(s.LifecycleChecks) > 0 {
+		return fmt.Errorf("lifecycle_checks are only valid on lifecycle scenarios")
+	}
+
+	// trajectory_checks apply to agent + deployment kinds (lifecycle has no
+	// session).
 	for i, spec := range s.TrajectoryChecks {
 		if len(spec) != 1 {
 			return fmt.Errorf("trajectory_checks[%d]: expected single-key map, got %d keys", i, len(spec))
@@ -178,13 +243,71 @@ func (s *Scenario) validate() error {
 	return nil
 }
 
-// validCheckKeys returns the sorted list of registered check names, used
-// in load-time error messages so a typo points at the actual valid set.
+// buildAndDiscardRunChecks validates run_checks shape + arg types at load.
+func buildAndDiscardRunChecks(specs []CheckSpec) error {
+	for i, spec := range specs {
+		if len(spec) != 1 {
+			return fmt.Errorf("run_checks[%d]: expected single-key map, got %d keys", i, len(spec))
+		}
+		for key, arg := range spec {
+			builder, ok := runCheckRegistry[key]
+			if !ok {
+				return fmt.Errorf("run_checks[%d]: unknown check %q (valid: %s)", i, key, validRunCheckKeys())
+			}
+			if _, err := builder(arg); err != nil {
+				return fmt.Errorf("run_checks[%d] %q: %w", i, key, err)
+			}
+		}
+	}
+	return nil
+}
+
+// buildAndDiscardLifecycleChecks validates lifecycle_checks at load.
+func buildAndDiscardLifecycleChecks(specs []CheckSpec) error {
+	for i, spec := range specs {
+		if len(spec) != 1 {
+			return fmt.Errorf("lifecycle_checks[%d]: expected single-key map, got %d keys", i, len(spec))
+		}
+		for key, arg := range spec {
+			builder, ok := lifecycleCheckRegistry[key]
+			if !ok {
+				return fmt.Errorf("lifecycle_checks[%d]: unknown check %q (valid: %s)", i, key, validLifecycleCheckKeys())
+			}
+			if _, err := builder(arg); err != nil {
+				return fmt.Errorf("lifecycle_checks[%d] %q: %w", i, key, err)
+			}
+		}
+	}
+	return nil
+}
+
+// validCheckKeys returns the sorted list of registered trajectory-check
+// names, used in load-time error messages so a typo points at the valid set.
 func validCheckKeys() string {
 	keys := make([]string, 0, len(checkRegistry))
 	for k := range checkRegistry {
 		keys = append(keys, k)
 	}
+	return joinSorted(keys)
+}
+
+func validRunCheckKeys() string {
+	keys := make([]string, 0, len(runCheckRegistry))
+	for k := range runCheckRegistry {
+		keys = append(keys, k)
+	}
+	return joinSorted(keys)
+}
+
+func validLifecycleCheckKeys() string {
+	keys := make([]string, 0, len(lifecycleCheckRegistry))
+	for k := range lifecycleCheckRegistry {
+		keys = append(keys, k)
+	}
+	return joinSorted(keys)
+}
+
+func joinSorted(keys []string) string {
 	sort.Strings(keys)
 	out := ""
 	for i, k := range keys {

@@ -35,9 +35,13 @@ import (
 // adequate; lower would beat on the API without practical benefit.
 const pollInterval = 2 * time.Second
 
-// targetResourceAddress is the fixed Terraform address every scenario
-// must use for the agent under test. Documented in README.md.
+// targetResourceAddress is the fixed Terraform address every agent-kind
+// scenario must use for the agent under test. Documented in README.md.
 const targetResourceAddress = "claude-managed-agents_agent.target"
+
+// deploymentTargetAddress is the fixed Terraform address deployment- and
+// lifecycle-kind scenarios must use for the deployment under test.
+const deploymentTargetAddress = "claude-managed-agents_deployment.target"
 
 // envResourceAddress is optional. If declared in the scenario, the
 // harness wires it to the session's environment_id.
@@ -106,6 +110,14 @@ func runScenario(t *testing.T, scn *Scenario, agg *aggregator) {
 	if err != nil {
 		t.Fatalf("scenarios: build checks: %v", err)
 	}
+	runChecks, err := buildAllRunChecks(scn.RunChecks)
+	if err != nil {
+		t.Fatalf("scenarios: build run checks: %v", err)
+	}
+	lifecycleChecks, err := buildAllLifecycleChecks(scn.LifecycleChecks)
+	if err != nil {
+		t.Fatalf("scenarios: build lifecycle checks: %v", err)
+	}
 
 	c, err := client.New(client.Config{
 		APIKey:    apiKey,
@@ -133,112 +145,192 @@ func runScenario(t *testing.T, scn *Scenario, agg *aggregator) {
 			{
 				Config: scn.TerraformConfig,
 				Check: func(s *terraform.State) error {
-					agentID, agentModel, err := extractAgent(s)
-					if err != nil {
-						return err
-					}
-					result.Model = agentModel
-					envID, _ := extractEnvironment(s) // optional
-					sessionResources := extractMemoryStoreResources(s)
-
 					ctx, cancel := context.WithTimeout(context.Background(), scn.Timeout)
 					defer cancel()
 
-					sess, err := c.CreateSession(ctx, client.SessionCreateRequest{
-						AgentID:       agentID,
-						EnvironmentID: envID,
-						Resources:     sessionResources,
-						Title:         "tf-acc-test-scenarios-" + scn.Name,
-					})
-					if err != nil {
-						result.FailureReason = "create session: " + err.Error()
-						return fmt.Errorf("create session: %w", err)
+					switch scn.Kind {
+					case "lifecycle":
+						return runLifecycleMode(ctx, t, c, scn, s, lifecycleChecks, &result)
+					case "deployment":
+						return runDeploymentMode(ctx, t, c, scn, s, checks, runChecks, &result)
+					default: // "agent"
+						return runAgentMode(ctx, t, c, scn, s, checks, &result)
 					}
-					// Always archive on exit. Best-effort — sweeper
-					// cleans up if this fails.
-					defer func() {
-						// Use a fresh, short context — the parent may
-						// already be cancelled if we timed out.
-						archCtx, archCancel := context.WithTimeout(context.Background(), 30*time.Second)
-						defer archCancel()
-						_ = c.ArchiveSession(archCtx, sess.ID)
-					}()
-
-					if err := c.PostSessionEvents(ctx, sess.ID, []client.UserEvent{{
-						Type: "user.message",
-						Content: []client.EventContent{{
-							Type: "text",
-							Text: scn.Question,
-						}},
-					}}); err != nil {
-						result.FailureReason = "post user event: " + err.Error()
-						return fmt.Errorf("post user event: %w", err)
-					}
-
-					trajectory, pollErr := pollUntilTerminal(ctx, c, sess.ID)
-					// Capture usage even on poll failure (final
-					// GetSession may report partial usage).
-					if final, gerr := c.GetSession(context.Background(), sess.ID); gerr == nil && final.Usage != nil {
-						result.SessionInput = final.Usage.InputTokens
-						result.SessionCacheCreate = final.Usage.CacheCreationInputTokens
-						result.SessionCacheRead = final.Usage.CacheReadInputTokens
-						result.SessionOutput = final.Usage.OutputTokens
-					}
-					if pollErr != nil {
-						result.FailureReason = "session loop: " + pollErr.Error()
-						return fmt.Errorf("session loop: %w", pollErr)
-					}
-
-					// Trajectory checks: run them all, surface the
-					// first failure but record every one in test
-					// output for debugging.
-					var checkErrs []string
-					for _, chk := range checks {
-						if err := chk(trajectory); err != nil {
-							checkErrs = append(checkErrs, err.Error())
-						}
-					}
-
-					// Extract final answer from the last agent.message
-					// event. Empty is acceptable (judge gets a clear
-					// note in the prompt and decides on PASS/FAIL).
-					finalAnswer := lastAgentMessage(trajectory)
-
-					verdict, err := c.JudgeVerdict(ctx, client.JudgeRequest{
-						Model:        scn.JudgeModel,
-						SystemPrompt: judgeSystemPrompt,
-						UserPrompt:   buildJudgeUserPrompt(scn, finalAnswer, trajectory),
-						MaxTokens:    512,
-					})
-					if err != nil {
-						result.FailureReason = "judge call: " + err.Error()
-						return fmt.Errorf("judge call: %w", err)
-					}
-					// Capture judge token usage from the Messages API
-					// response. JudgeResult.Usage is nil only if the
-					// upstream API ever omits the usage block (extremely
-					// unlikely upstream regression).
-					if verdict.Usage != nil {
-						result.JudgeIn = verdict.Usage.InputTokens
-						result.JudgeOut = verdict.Usage.OutputTokens
-					}
-
-					if len(checkErrs) > 0 {
-						result.FailureReason = "trajectory check: " + strings.Join(checkErrs, "; ")
-						return fmt.Errorf("trajectory check failures: %s", strings.Join(checkErrs, "; "))
-					}
-					if verdict.Verdict != "PASS" {
-						result.FailureReason = "judge FAIL: " + verdict.Reason
-						return fmt.Errorf("judge FAIL: %s", verdict.Reason)
-					}
-
-					result.Pass = true
-					t.Logf("scenario %s PASS: %s", scn.Name, verdict.Reason)
-					return nil
 				},
 			},
 		},
 	})
+}
+
+// runAgentMode is the original scenario shape: open a session against
+// claude-managed-agents_agent.target, post the question, drive + judge it.
+func runAgentMode(ctx context.Context, t *testing.T, c *client.Client, scn *Scenario, s *terraform.State, checks []TrajectoryCheck, result *scenarioResult) error {
+	agentID, agentModel, err := extractAgent(s)
+	if err != nil {
+		return err
+	}
+	result.Model = agentModel
+	envID, _ := extractEnvironment(s) // optional
+	sessionResources := extractMemoryStoreResources(s)
+
+	sess, err := c.CreateSession(ctx, client.SessionCreateRequest{
+		AgentID:       agentID,
+		EnvironmentID: envID,
+		Resources:     sessionResources,
+		Title:         "tf-acc-test-scenarios-" + scn.Name,
+	})
+	if err != nil {
+		result.FailureReason = "create session: " + err.Error()
+		return fmt.Errorf("create session: %w", err)
+	}
+	defer archiveSessionBestEffort(c, sess.ID)
+
+	if err := c.PostSessionEvents(ctx, sess.ID, []client.UserEvent{{
+		Type:    "user.message",
+		Content: []client.EventContent{{Type: "text", Text: scn.Question}},
+	}}); err != nil {
+		result.FailureReason = "post user event: " + err.Error()
+		return fmt.Errorf("post user event: %w", err)
+	}
+
+	if err := driveSession(ctx, c, scn, sess.ID, checks, result); err != nil {
+		return err
+	}
+	result.Pass = true
+	t.Logf("scenario %s PASS", scn.Name)
+	return nil
+}
+
+// runDeploymentMode fires claude-managed-agents_deployment.target via a manual
+// run (POST .../run), asserts run-record properties, and — when the run starts
+// a session — drives + judges that session. An optional pre_run_archive drives
+// the run-time error path (no session → run_checks only, no judge).
+func runDeploymentMode(ctx context.Context, t *testing.T, c *client.Client, scn *Scenario, s *terraform.State, checks []TrajectoryCheck, runChecks []RunCheck, result *scenarioResult) error {
+	depID, _, envID, model, err := extractDeployment(s)
+	if err != nil {
+		return err
+	}
+	result.Model = model
+
+	if scn.PreRunArchive == "environment" {
+		if err := c.ArchiveEnvironment(ctx, envID); err != nil {
+			result.FailureReason = "pre_run_archive environment: " + err.Error()
+			return fmt.Errorf("pre_run_archive environment: %w", err)
+		}
+	}
+
+	run, err := c.TriggerDeployment(ctx, depID)
+	if err != nil {
+		result.FailureReason = "trigger deployment: " + err.Error()
+		return fmt.Errorf("trigger deployment: %w", err)
+	}
+
+	var checkErrs []string
+	for _, rc := range runChecks {
+		if err := rc(run); err != nil {
+			checkErrs = append(checkErrs, err.Error())
+		}
+	}
+
+	// When the run created a session, drive + judge it. On the error path
+	// (no session) there is nothing to poll or judge.
+	if run.SessionID != nil && *run.SessionID != "" {
+		if err := driveSession(ctx, c, scn, *run.SessionID, checks, result); err != nil {
+			if len(checkErrs) > 0 {
+				result.FailureReason += "; run check: " + strings.Join(checkErrs, "; ")
+			}
+			return err
+		}
+	}
+
+	if len(checkErrs) > 0 {
+		result.FailureReason = "run check: " + strings.Join(checkErrs, "; ")
+		return fmt.Errorf("run check failures: %s", strings.Join(checkErrs, "; "))
+	}
+	result.Pass = true
+	t.Logf("scenario %s PASS (run %s)", scn.Name, run.ID)
+	return nil
+}
+
+// runLifecycleMode drives deployment lifecycle ops (pause/resume) against
+// claude-managed-agents_deployment.target and asserts the transitions. No
+// session, no judge, no tokens.
+func runLifecycleMode(ctx context.Context, t *testing.T, c *client.Client, scn *Scenario, s *terraform.State, lifecycleChecks []LifecycleCheck, result *scenarioResult) error {
+	depID, _, _, _, err := extractDeployment(s)
+	if err != nil {
+		return err
+	}
+	for _, lc := range lifecycleChecks {
+		if err := lc(ctx, c, depID); err != nil {
+			result.FailureReason = "lifecycle check: " + err.Error()
+			return fmt.Errorf("lifecycle check: %w", err)
+		}
+	}
+	result.Pass = true
+	t.Logf("scenario %s PASS (lifecycle)", scn.Name)
+	return nil
+}
+
+// driveSession polls a session to terminal, captures usage, runs trajectory
+// checks, and judges the final answer against the rubric. Sets result fields
+// on failure; the caller marks result.Pass on a nil return.
+func driveSession(ctx context.Context, c *client.Client, scn *Scenario, sessionID string, checks []TrajectoryCheck, result *scenarioResult) error {
+	defer archiveSessionBestEffort(c, sessionID)
+
+	trajectory, pollErr := pollUntilTerminal(ctx, c, sessionID)
+	// Capture usage even on poll failure (final GetSession may report
+	// partial usage).
+	if final, gerr := c.GetSession(context.Background(), sessionID); gerr == nil && final.Usage != nil {
+		result.SessionInput = final.Usage.InputTokens
+		result.SessionCacheCreate = final.Usage.CacheCreationInputTokens
+		result.SessionCacheRead = final.Usage.CacheReadInputTokens
+		result.SessionOutput = final.Usage.OutputTokens
+	}
+	if pollErr != nil {
+		result.FailureReason = "session loop: " + pollErr.Error()
+		return fmt.Errorf("session loop: %w", pollErr)
+	}
+
+	var checkErrs []string
+	for _, chk := range checks {
+		if err := chk(trajectory); err != nil {
+			checkErrs = append(checkErrs, err.Error())
+		}
+	}
+
+	finalAnswer := lastAgentMessage(trajectory)
+	verdict, err := c.JudgeVerdict(ctx, client.JudgeRequest{
+		Model:        scn.JudgeModel,
+		SystemPrompt: judgeSystemPrompt,
+		UserPrompt:   buildJudgeUserPrompt(scn, finalAnswer, trajectory),
+		MaxTokens:    512,
+	})
+	if err != nil {
+		result.FailureReason = "judge call: " + err.Error()
+		return fmt.Errorf("judge call: %w", err)
+	}
+	if verdict.Usage != nil {
+		result.JudgeIn = verdict.Usage.InputTokens
+		result.JudgeOut = verdict.Usage.OutputTokens
+	}
+
+	if len(checkErrs) > 0 {
+		result.FailureReason = "trajectory check: " + strings.Join(checkErrs, "; ")
+		return fmt.Errorf("trajectory check failures: %s", strings.Join(checkErrs, "; "))
+	}
+	if verdict.Verdict != "PASS" {
+		result.FailureReason = "judge FAIL: " + verdict.Reason
+		return fmt.Errorf("judge FAIL: %s", verdict.Reason)
+	}
+	return nil
+}
+
+// archiveSessionBestEffort archives a session on a fresh short context so
+// cleanup still runs when the scenario context is already cancelled (timeout).
+func archiveSessionBestEffort(c *client.Client, sessionID string) {
+	archCtx, archCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer archCancel()
+	_ = c.ArchiveSession(archCtx, sessionID)
 }
 
 // pollUntilTerminal repeatedly calls ListSessionEvents until the session
@@ -353,13 +445,19 @@ func buildJudgeUserPrompt(scn *Scenario, finalAnswer string, events []client.Ses
 	if finalAnswer == "" {
 		finalAnswer = "(agent produced no final text response)"
 	}
+	// Deployment scenarios drive the session from the deployment's own
+	// initial_events (no `question`); use outcome_description as the TASK.
+	task := scn.Question
+	if task == "" {
+		task = scn.OutcomeDescription
+	}
 	return fmt.Sprintf(`TASK: %s
 RUBRIC: %s
 AGENT FINAL RESPONSE: %s
 TRANSCRIPT (last %d events, types only):
 %s
 Did the agent satisfy the rubric? Reply as JSON only.`,
-		strings.TrimSpace(scn.Question),
+		strings.TrimSpace(task),
 		strings.TrimSpace(scn.Rubric),
 		strings.TrimSpace(finalAnswer),
 		len(tail),
@@ -382,6 +480,30 @@ func extractAgent(s *terraform.State) (id, model string, err error) {
 	}
 	model = rs.Primary.Attributes["model"]
 	return id, model, nil
+}
+
+// extractDeployment pulls the id, agent id, and environment id from the
+// claude-managed-agents_deployment.target resource, plus the agent's model
+// (matched from the agent resource in state, for the cost summary). model is
+// empty if no matching agent resource is found — pricing.go tolerates that.
+func extractDeployment(s *terraform.State) (id, agentID, envID, model string, err error) {
+	rs, ok := s.RootModule().Resources[deploymentTargetAddress]
+	if !ok {
+		return "", "", "", "", fmt.Errorf("scenarios: expected resource %q in state (deployment/lifecycle scenarios must declare it)", deploymentTargetAddress)
+	}
+	id = rs.Primary.Attributes["id"]
+	if id == "" {
+		return "", "", "", "", fmt.Errorf("scenarios: %s has no id in state", deploymentTargetAddress)
+	}
+	agentID = rs.Primary.Attributes["agent"]
+	envID = rs.Primary.Attributes["environment_id"]
+	for addr, r := range s.RootModule().Resources {
+		if strings.HasPrefix(addr, "claude-managed-agents_agent.") && r.Primary.Attributes["id"] == agentID {
+			model = r.Primary.Attributes["model"]
+			break
+		}
+	}
+	return id, agentID, envID, model, nil
 }
 
 // extractEnvironment returns the optional environment id and whether the

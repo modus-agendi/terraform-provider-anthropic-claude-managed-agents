@@ -184,8 +184,27 @@ func TestLoadDir_shippedScenarios(t *testing.T) {
 		t.Fatal("expected at least one shipped scenario")
 	}
 	for _, s := range scns {
-		if s.Name == "" || s.Question == "" || s.Rubric == "" {
-			t.Errorf("scenario %s has empty required field", s.SourcePath())
+		// Load already validates kind-specific required fields; here we
+		// just confirm a name and that the kind-appropriate driver inputs
+		// are present.
+		if s.Name == "" {
+			t.Errorf("scenario %s has no name", s.SourcePath())
+		}
+		switch s.Kind {
+		case "agent":
+			if s.Question == "" || s.Rubric == "" {
+				t.Errorf("agent scenario %s missing question/rubric", s.SourcePath())
+			}
+		case "deployment":
+			if s.TerraformConfig == "" {
+				t.Errorf("deployment scenario %s missing terraform_config", s.SourcePath())
+			}
+		case "lifecycle":
+			if len(s.LifecycleChecks) == 0 {
+				t.Errorf("lifecycle scenario %s missing lifecycle_checks", s.SourcePath())
+			}
+		default:
+			t.Errorf("scenario %s has unexpected kind %q", s.SourcePath(), s.Kind)
 		}
 	}
 }
@@ -291,6 +310,161 @@ func TestCheck_requireToolUseNamed(t *testing.T) {
 	}
 	if _, err := buildRequireToolUseNamed(nil); err == nil {
 		t.Error("expected error for nil arg")
+	}
+}
+
+func TestCheck_requireOutcomeResult(t *testing.T) {
+	if os.Getenv("TF_ACC") == "" {
+		t.Skip("set TF_ACC=1 to run scenario harness unit tests")
+	}
+	chk, err := buildRequireOutcomeResult("satisfied")
+	if err != nil {
+		t.Fatalf("build: %v", err)
+	}
+	good := []client.SessionEvent{rawEvent(t, "ev1", "span.outcome_evaluation_end", `{"id":"ev1","type":"span.outcome_evaluation_end","result":"satisfied"}`)}
+	if err := chk(good); err != nil {
+		t.Errorf("good: %v", err)
+	}
+	bad := []client.SessionEvent{rawEvent(t, "ev1", "span.outcome_evaluation_end", `{"id":"ev1","type":"span.outcome_evaluation_end","result":"max_iterations_reached"}`)}
+	if err := chk(bad); err == nil {
+		t.Error("expected failure on wrong result")
+	}
+	if _, err := buildRequireOutcomeResult(0); err == nil {
+		t.Error("expected error for non-string arg")
+	}
+}
+
+func TestRunChecks(t *testing.T) {
+	if os.Getenv("TF_ACC") == "" {
+		t.Skip("set TF_ACC=1 to run scenario harness unit tests")
+	}
+	sess := "sesn_9"
+	okRun := &client.DeploymentRun{
+		SessionID:      &sess,
+		TriggerContext: client.DeploymentTriggerContext{Type: "manual"},
+	}
+	errRun := &client.DeploymentRun{
+		Error:          &client.DeploymentRunError{Type: "environment_archived_error", Message: "archived"},
+		TriggerContext: client.DeploymentTriggerContext{Type: "manual"},
+	}
+
+	cases := []struct {
+		name     string
+		spec     CheckSpec
+		run      *client.DeploymentRun
+		wantPass bool
+	}{
+		{"trigger manual ok", CheckSpec{"require_run_trigger_type": "manual"}, okRun, true},
+		{"trigger schedule fail", CheckSpec{"require_run_trigger_type": "schedule"}, okRun, false},
+		{"session set ok", CheckSpec{"require_run_session_set": true}, okRun, true},
+		{"session set fail on error run", CheckSpec{"require_run_session_set": true}, errRun, false},
+		{"no error ok", CheckSpec{"require_run_no_error": true}, okRun, true},
+		{"no error fail", CheckSpec{"require_run_no_error": true}, errRun, false},
+		{"error type ok", CheckSpec{"require_run_error_type": "environment_archived_error"}, errRun, true},
+		{"error type wrong", CheckSpec{"require_run_error_type": "vault_not_found_error"}, errRun, false},
+		{"error type on success run", CheckSpec{"require_run_error_type": "environment_archived_error"}, okRun, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			built, err := buildAllRunChecks([]CheckSpec{tc.spec})
+			if err != nil {
+				t.Fatalf("build: %v", err)
+			}
+			gotErr := built[0](tc.run)
+			if tc.wantPass && gotErr != nil {
+				t.Errorf("want pass, got %v", gotErr)
+			}
+			if !tc.wantPass && gotErr == nil {
+				t.Error("want fail, got pass")
+			}
+		})
+	}
+
+	if _, err := buildRequireRunTriggerType(0); err == nil {
+		t.Error("expected error for non-string trigger arg")
+	}
+	if _, err := buildRequireRunErrorType(""); err == nil {
+		t.Error("expected error for empty error-type arg")
+	}
+}
+
+func TestLifecycleCheckRegistry(t *testing.T) {
+	if os.Getenv("TF_ACC") == "" {
+		t.Skip("set TF_ACC=1 to run scenario harness unit tests")
+	}
+	// Builder is validatable without a live client; the assertion logic runs
+	// in the live L5 path. Confirm it registers and builds.
+	built, err := buildAllLifecycleChecks([]CheckSpec{{"require_pause_resume_cycle": true}})
+	if err != nil {
+		t.Fatalf("build: %v", err)
+	}
+	if len(built) != 1 {
+		t.Fatalf("got %d lifecycle checks, want 1", len(built))
+	}
+	if _, err := buildAllLifecycleChecks([]CheckSpec{{"nope": true}}); err == nil {
+		t.Error("expected error for unknown lifecycle check")
+	}
+}
+
+func TestLoad_deploymentAndLifecycleKinds(t *testing.T) {
+	if os.Getenv("TF_ACC") == "" {
+		t.Skip("set TF_ACC=1 to run scenario harness unit tests")
+	}
+	dir := t.TempDir()
+
+	// deployment kind with run_checks + outcome_description (no question).
+	depYAML := `name: dep_ok
+kind: deployment
+terraform_config: |
+  resource "claude-managed-agents_deployment" "target" {}
+outcome_description: do the thing
+rubric: PASS if done
+trajectory_checks:
+  - require_outcome_result: satisfied
+run_checks:
+  - require_run_trigger_type: manual
+`
+	writeFile(t, dir+"/dep.yaml", depYAML)
+	if _, err := Load(dir + "/dep.yaml"); err != nil {
+		t.Errorf("deployment scenario should load: %v", err)
+	}
+
+	// lifecycle kind.
+	lifeYAML := `name: life_ok
+kind: lifecycle
+terraform_config: |
+  resource "claude-managed-agents_deployment" "target" {}
+lifecycle_checks:
+  - require_pause_resume_cycle: true
+`
+	writeFile(t, dir+"/life.yaml", lifeYAML)
+	if _, err := Load(dir + "/life.yaml"); err != nil {
+		t.Errorf("lifecycle scenario should load: %v", err)
+	}
+
+	// run_checks on a non-deployment kind is rejected.
+	badYAML := `name: bad
+kind: agent
+terraform_config: x
+question: q
+rubric: r
+run_checks:
+  - require_run_no_error: true
+`
+	writeFile(t, dir+"/bad.yaml", badYAML)
+	if _, err := Load(dir + "/bad.yaml"); err == nil {
+		t.Error("run_checks on agent kind should be rejected")
+	}
+
+	// deployment with rubric but no task is rejected.
+	noTaskYAML := `name: notask
+kind: deployment
+terraform_config: x
+rubric: PASS if done
+`
+	writeFile(t, dir+"/notask.yaml", noTaskYAML)
+	if _, err := Load(dir + "/notask.yaml"); err == nil {
+		t.Error("deployment with rubric but no task should be rejected")
 	}
 }
 
