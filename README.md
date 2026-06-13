@@ -48,6 +48,8 @@ This provider lets you put that configuration under Terraform so you can:
 | Resource + data source `claude-managed-agents_vault_credential` (TF 1.11 write-only secrets) | shipped |
 | Resource + data source `claude-managed-agents_memory_store` | shipped |
 | Resource `claude-managed-agents_skill` (multipart upload, content-hash drift detection, 30 MB cap) | shipped |
+| Resource + data source `claude-managed-agents_deployment` (scheduled/manual, pause-resume via `desired_status`, write-only github token) | shipped |
+| Data source `claude-managed-agents_deployment_runs` (run audit records, typed error taxonomy) | shipped |
 | Data source `claude-managed-agents_skill` (prebuilt + custom) | shipped |
 | Data source `claude-managed-agents_agent_version` | shipped |
 | Data source `claude-managed-agents_file` | shipped |
@@ -122,6 +124,7 @@ provider "claude-managed-agents" {
 | Kind | Name | Docs |
 |---|---|---|
 | Resource | `claude-managed-agents_agent` | [docs/resources/agent.md](docs/resources/agent.md) |
+| Resource | `claude-managed-agents_deployment` | [docs/resources/deployment.md](docs/resources/deployment.md) |
 | Resource | `claude-managed-agents_environment` | [docs/resources/environment.md](docs/resources/environment.md) |
 | Resource | `claude-managed-agents_memory_store` | [docs/resources/memory_store.md](docs/resources/memory_store.md) |
 | Resource | `claude-managed-agents_skill` | [docs/resources/skill.md](docs/resources/skill.md) |
@@ -129,6 +132,8 @@ provider "claude-managed-agents" {
 | Resource | `claude-managed-agents_vault_credential` | [docs/resources/vault_credential.md](docs/resources/vault_credential.md) |
 | Data source | `claude-managed-agents_agent` | [docs/data-sources/agent.md](docs/data-sources/agent.md) |
 | Data source | `claude-managed-agents_agent_version` | [docs/data-sources/agent_version.md](docs/data-sources/agent_version.md) |
+| Data source | `claude-managed-agents_deployment` | [docs/data-sources/deployment.md](docs/data-sources/deployment.md) |
+| Data source | `claude-managed-agents_deployment_runs` | [docs/data-sources/deployment_runs.md](docs/data-sources/deployment_runs.md) |
 | Data source | `claude-managed-agents_environment` | [docs/data-sources/environment.md](docs/data-sources/environment.md) |
 | Data source | `claude-managed-agents_file` | [docs/data-sources/file.md](docs/data-sources/file.md) |
 | Data source | `claude-managed-agents_memory_store` | [docs/data-sources/memory_store.md](docs/data-sources/memory_store.md) |
@@ -143,6 +148,7 @@ provider "claude-managed-agents" {
 - **`metadata` is key-level merged.** The upstream API uses merge semantics: removing a key from your HCL causes the provider to send JSON null for that key, which the API treats as a delete. Applies to both `claude-managed-agents_agent.metadata` and `claude-managed-agents_vault.metadata`.
 - **Environments are immutable.** The API has no environment update endpoint, so every attribute on `claude-managed-agents_environment` is `ForceNew`. Any change triggers replacement. Destroy issues `DELETE /v1/environments/{id}` and falls back to archive if the API returns 409 (active session reference).
 - **Vault and memory_store destroy archives by default.** Set `delete_on_destroy = true` on the resource to hard-delete instead. Vault archive cascades through credentials; memory_store hard-delete cascades through memories and memory versions.
+- **Deployment pause/resume is driven by `desired_status`, not `status`.** Set `desired_status` to `active` or `paused`; the provider reconciles via the pause/resume endpoints. `desired_status` is your intent and is deliberately decoupled from the observed `status`: when the API auto-pauses a deployment on error, `status` becomes `paused` while `desired_status` stays `active`, and Terraform will **not** fight it (no resume flap). Inspect `paused_reason`, fix the cause, then re-apply to resume. Editing `initial_events` forces replacement (the API does not patch events in place). Destroy archives the deployment (one-way; no DELETE endpoint). The github `authorization_token` in `resources` is write-only — bump `authorization_token_wo_version` to re-send it on rotation.
 - **Vault-credential secrets are write-only.** Secret fields are never read back from the API. Rotate by incrementing the corresponding `token_wo_version`, `access_token_wo_version`, `refresh_token_wo_version`, or `client_secret_wo_version` integer. `auth.type`, `auth.mcp_server_url`, `auth.refresh.token_endpoint`, and `auth.refresh.client_id` are immutable (RequiresReplace).
 
 ## OpenTofu compatibility

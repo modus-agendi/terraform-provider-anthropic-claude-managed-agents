@@ -47,12 +47,15 @@ type fakeAPI struct {
 	skills         map[string]*fakeSkill
 	skillVersions  map[string][]*fakeSkillVersion // by skill_id, newest-last (append order)
 	skillEpoch     int64                          // monotonic counter to mint unique epoch-strings
+	deployments    map[string]*fakeDeployment
+	deploymentRuns []*fakeDeploymentRun
 	counter        int
 	envCounter     int
 	storeCounter   int
 	vaultCounter   int
 	credCounter    int
 	skillCounter   int
+	depCounter     int
 }
 
 type fakeSkill struct {
@@ -153,6 +156,7 @@ func newFakeAPI() *fakeAPI {
 		agentVersions:  map[string][]map[string]any{},
 		skills:         map[string]*fakeSkill{},
 		skillVersions:  map[string][]*fakeSkillVersion{},
+		deployments:    map[string]*fakeDeployment{},
 	}
 	// Seed Anthropic-prebuilt skills so the data source can resolve them in
 	// L2 mode. Versions are stable ISO-date strings to match the real API
@@ -359,6 +363,65 @@ func (f *fakeAPI) handler() http.Handler {
 			default:
 				http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			}
+			return
+		}
+		http.Error(w, "not found", http.StatusNotFound)
+	})
+
+	mux.HandleFunc("/v1/deployments", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodPost:
+			f.deploymentCreate(w, r)
+		case http.MethodGet:
+			f.deploymentList(w, r)
+		default:
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+
+	depPauseRe := regexp.MustCompile(`^/v1/deployments/([^/]+)/pause$`)
+	depResumeRe := regexp.MustCompile(`^/v1/deployments/([^/]+)/resume$`)
+	depArchiveRe := regexp.MustCompile(`^/v1/deployments/([^/]+)/archive$`)
+	depItemRe := regexp.MustCompile(`^/v1/deployments/([^/]+)$`)
+
+	mux.HandleFunc("/v1/deployments/", func(w http.ResponseWriter, r *http.Request) {
+		if m := depPauseRe.FindStringSubmatch(r.URL.Path); m != nil && r.Method == http.MethodPost {
+			f.deploymentSetPause(w, m[1], true)
+			return
+		}
+		if m := depResumeRe.FindStringSubmatch(r.URL.Path); m != nil && r.Method == http.MethodPost {
+			f.deploymentSetPause(w, m[1], false)
+			return
+		}
+		if m := depArchiveRe.FindStringSubmatch(r.URL.Path); m != nil && r.Method == http.MethodPost {
+			f.deploymentArchive(w, m[1])
+			return
+		}
+		if m := depItemRe.FindStringSubmatch(r.URL.Path); m != nil {
+			switch r.Method {
+			case http.MethodGet:
+				f.deploymentGet(w, m[1])
+			case http.MethodPatch:
+				f.deploymentUpdate(w, r, m[1])
+			default:
+				http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			}
+			return
+		}
+		http.Error(w, "not found", http.StatusNotFound)
+	})
+
+	depRunItemRe := regexp.MustCompile(`^/v1/deployment_runs/([^/]+)$`)
+	mux.HandleFunc("/v1/deployment_runs", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		f.deploymentRunsList(w, r)
+	})
+	mux.HandleFunc("/v1/deployment_runs/", func(w http.ResponseWriter, r *http.Request) {
+		if m := depRunItemRe.FindStringSubmatch(r.URL.Path); m != nil && r.Method == http.MethodGet {
+			f.deploymentRunGet(w, m[1])
 			return
 		}
 		http.Error(w, "not found", http.StatusNotFound)
@@ -1602,6 +1665,348 @@ func normalizeMultiagentSelf(in map[string]any, parentID string) map[string]any 
 	}
 	in["agents"] = agents
 	return in
+}
+
+// --- deployment fakes --------------------------------------------------------
+
+type fakeDeployment struct {
+	ID            string            `json:"id"`
+	Type          string            `json:"type"`
+	Name          string            `json:"name"`
+	Agent         map[string]any    `json:"agent"`
+	EnvironmentID string            `json:"environment_id"`
+	Description   *string           `json:"description"`
+	Metadata      map[string]string `json:"metadata"`
+	InitialEvents []map[string]any  `json:"initial_events"`
+	Resources     []map[string]any  `json:"resources"`
+	Schedule      map[string]any    `json:"schedule"`
+	VaultIDs      []string          `json:"vault_ids"`
+	Status        string            `json:"status"`
+	PausedReason  map[string]any    `json:"paused_reason"`
+	CreatedAt     string            `json:"created_at"`
+	UpdatedAt     string            `json:"updated_at"`
+	ArchivedAt    *string           `json:"archived_at"`
+}
+
+type fakeDeploymentRun struct {
+	ID             string         `json:"id"`
+	Type           string         `json:"type"`
+	Agent          map[string]any `json:"agent"`
+	DeploymentID   string         `json:"deployment_id"`
+	CreatedAt      string         `json:"created_at"`
+	SessionID      *string        `json:"session_id"`
+	Error          map[string]any `json:"error"`
+	TriggerContext map[string]any `json:"trigger_context"`
+}
+
+// SeedDeploymentRun appends a run record so the deployment_runs data source has
+// something to return in L2 mode.
+func (f *fakeAPI) SeedDeploymentRun(run *fakeDeploymentRun) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.deploymentRuns = append(f.deploymentRuns, run)
+}
+
+// MutateDeployment runs mutate under lock to simulate out-of-band edits for
+// drift-detection scenarios.
+func (f *fakeAPI) MutateDeployment(id string, mutate func(d *fakeDeployment)) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if d, ok := f.deployments[id]; ok {
+		mutate(d)
+	}
+}
+
+// SnapshotDeployment returns a shallow copy of the deployment with id, or nil.
+func (f *fakeAPI) SnapshotDeployment(id string) *fakeDeployment {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	d, ok := f.deployments[id]
+	if !ok {
+		return nil
+	}
+	cp := *d
+	return &cp
+}
+
+// DeleteAllDeployments wipes the deployment map (out-of-band delete before a
+// Read step, and sweeper teardown).
+func (f *fakeAPI) DeleteAllDeployments() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.deployments = map[string]*fakeDeployment{}
+}
+
+// resolveAgentRef turns the request's `agent` (a bare id string or an
+// {id,version} object) into the resolved reference the API always returns,
+// pinning the live agent's version when known.
+func (f *fakeAPI) resolveAgentRef(raw json.RawMessage) (map[string]any, bool) {
+	var v any
+	if err := json.Unmarshal(raw, &v); err != nil {
+		return nil, false
+	}
+	id, ok := modelStringOf(v)
+	if !ok || id == "" {
+		return nil, false
+	}
+	version := 1
+	if a, ok := f.agents[id]; ok {
+		version = a.Version
+	}
+	return map[string]any{"id": id, "type": "agent", "version": version}, true
+}
+
+func stripAuthTokens(resources []map[string]any) {
+	for _, r := range resources {
+		delete(r, "authorization_token")
+	}
+}
+
+func (f *fakeAPI) deploymentCreate(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Name          string            `json:"name"`
+		Agent         json.RawMessage   `json:"agent"`
+		EnvironmentID string            `json:"environment_id"`
+		InitialEvents []map[string]any  `json:"initial_events"`
+		Description   *string           `json:"description"`
+		Metadata      map[string]string `json:"metadata"`
+		Resources     []map[string]any  `json:"resources"`
+		Schedule      map[string]any    `json:"schedule"`
+		VaultIDs      []string          `json:"vault_ids"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeAPIErr(w, http.StatusBadRequest, "invalid_request_error", err.Error())
+		return
+	}
+	if body.Name == "" || len(body.Agent) == 0 || body.EnvironmentID == "" {
+		writeAPIErr(w, http.StatusBadRequest, "invalid_request_error", "name, agent, environment_id are required")
+		return
+	}
+	if n := len(body.InitialEvents); n < 1 || n > 50 {
+		writeAPIErr(w, http.StatusBadRequest, "invalid_request_error", "initial_events must have 1-50 entries")
+		return
+	}
+
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	agentRef, ok := f.resolveAgentRef(body.Agent)
+	if !ok {
+		writeAPIErr(w, http.StatusBadRequest, "invalid_request_error", "agent must be an id string or {id} object")
+		return
+	}
+	stripAuthTokens(body.Resources)
+	f.depCounter++
+	now := time.Now().UTC().Format(time.RFC3339)
+	id := fmt.Sprintf("deployment_FAKE%04d", f.depCounter)
+	if body.Metadata == nil {
+		body.Metadata = map[string]string{}
+	}
+	dep := &fakeDeployment{
+		ID:            id,
+		Type:          "deployment",
+		Name:          body.Name,
+		Agent:         agentRef,
+		EnvironmentID: body.EnvironmentID,
+		Description:   body.Description,
+		Metadata:      body.Metadata,
+		InitialEvents: body.InitialEvents,
+		Resources:     body.Resources,
+		Schedule:      body.Schedule,
+		VaultIDs:      body.VaultIDs,
+		Status:        "active",
+		CreatedAt:     now,
+		UpdatedAt:     now,
+	}
+	f.deployments[id] = dep
+	w.Header().Set("request-id", "req_"+id)
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(dep)
+}
+
+func (f *fakeAPI) deploymentGet(w http.ResponseWriter, id string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	d, ok := f.deployments[id]
+	if !ok {
+		writeAPIErr(w, http.StatusNotFound, "not_found_error", "no such deployment")
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(d)
+}
+
+func (f *fakeAPI) deploymentUpdate(w http.ResponseWriter, r *http.Request, id string) {
+	var body struct {
+		Name          *string           `json:"name"`
+		Agent         json.RawMessage   `json:"agent"`
+		EnvironmentID *string           `json:"environment_id"`
+		InitialEvents *[]map[string]any `json:"initial_events"`
+		Description   json.RawMessage   `json:"description"`
+		Metadata      map[string]any    `json:"metadata"`
+		Resources     *[]map[string]any `json:"resources"`
+		Schedule      json.RawMessage   `json:"schedule"`
+		VaultIDs      *[]string         `json:"vault_ids"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeAPIErr(w, http.StatusBadRequest, "invalid_request_error", err.Error())
+		return
+	}
+
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	d, ok := f.deployments[id]
+	if !ok {
+		writeAPIErr(w, http.StatusNotFound, "not_found_error", "no such deployment")
+		return
+	}
+	if d.ArchivedAt != nil {
+		writeAPIErr(w, http.StatusConflict, "conflict_error", "deployment is archived")
+		return
+	}
+
+	if body.Name != nil {
+		d.Name = *body.Name
+	}
+	if len(body.Agent) > 0 {
+		if ref, ok := f.resolveAgentRef(body.Agent); ok {
+			d.Agent = ref
+		}
+	}
+	if body.EnvironmentID != nil {
+		d.EnvironmentID = *body.EnvironmentID
+	}
+	if body.Description != nil {
+		d.Description = decodeNullableString(body.Description)
+	}
+	for k, v := range body.Metadata {
+		if v == nil {
+			delete(d.Metadata, k)
+			continue
+		}
+		if s, ok := v.(string); ok {
+			d.Metadata[k] = s
+		}
+	}
+	if body.InitialEvents != nil {
+		d.InitialEvents = *body.InitialEvents
+	}
+	if body.Resources != nil {
+		stripAuthTokens(*body.Resources)
+		d.Resources = *body.Resources
+	}
+	if body.Schedule != nil {
+		if strings.TrimSpace(string(body.Schedule)) == "null" {
+			d.Schedule = nil
+		} else {
+			var s map[string]any
+			if err := json.Unmarshal(body.Schedule, &s); err == nil {
+				d.Schedule = s
+			}
+		}
+	}
+	if body.VaultIDs != nil {
+		d.VaultIDs = *body.VaultIDs
+	}
+	d.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
+
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(d)
+}
+
+func (f *fakeAPI) deploymentArchive(w http.ResponseWriter, id string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	d, ok := f.deployments[id]
+	if !ok {
+		writeAPIErr(w, http.StatusNotFound, "not_found_error", "no such deployment")
+		return
+	}
+	now := time.Now().UTC().Format(time.RFC3339)
+	d.ArchivedAt = &now
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(d)
+}
+
+func (f *fakeAPI) deploymentSetPause(w http.ResponseWriter, id string, pause bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	d, ok := f.deployments[id]
+	if !ok {
+		writeAPIErr(w, http.StatusNotFound, "not_found_error", "no such deployment")
+		return
+	}
+	if pause {
+		d.Status = "paused"
+		d.PausedReason = map[string]any{"type": "manual"}
+	} else {
+		d.Status = "active"
+		d.PausedReason = nil
+	}
+	d.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(d)
+}
+
+func (f *fakeAPI) deploymentList(w http.ResponseWriter, _ *http.Request) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	out := struct {
+		Data     []*fakeDeployment `json:"data"`
+		NextPage *string           `json:"next_page"`
+	}{Data: []*fakeDeployment{}}
+	for _, d := range f.deployments {
+		if d.ArchivedAt != nil {
+			continue
+		}
+		out.Data = append(out.Data, d)
+	}
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(out)
+}
+
+func (f *fakeAPI) deploymentRunsList(w http.ResponseWriter, r *http.Request) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	q := r.URL.Query()
+	depID := q.Get("deployment_id")
+	trigger := q.Get("trigger_type")
+	hasErr := q.Get("has_error")
+	out := struct {
+		Data     []*fakeDeploymentRun `json:"data"`
+		NextPage *string              `json:"next_page"`
+	}{Data: []*fakeDeploymentRun{}}
+	for _, run := range f.deploymentRuns {
+		if depID != "" && run.DeploymentID != depID {
+			continue
+		}
+		if trigger != "" {
+			if t, _ := run.TriggerContext["type"].(string); t != trigger {
+				continue
+			}
+		}
+		if hasErr == "true" && run.Error == nil {
+			continue
+		}
+		if hasErr == "false" && run.Error != nil {
+			continue
+		}
+		out.Data = append(out.Data, run)
+	}
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(out)
+}
+
+func (f *fakeAPI) deploymentRunGet(w http.ResponseWriter, id string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for _, run := range f.deploymentRuns {
+		if run.ID == id {
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(run)
+			return
+		}
+	}
+	writeAPIErr(w, http.StatusNotFound, "not_found_error", "no such deployment run")
 }
 
 func writeAPIErr(w http.ResponseWriter, status int, typ, msg string) {
