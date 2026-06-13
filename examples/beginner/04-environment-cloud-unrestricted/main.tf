@@ -4,7 +4,7 @@ terraform {
   required_providers {
     claude-managed-agents = {
       source  = "modus-agendi/anthropic-claude-managed-agents"
-      version = "~> 0.4"
+      version = "~> 1.0"
     }
   }
 }

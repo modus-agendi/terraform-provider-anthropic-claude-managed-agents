@@ -6,6 +6,15 @@ description: |-
 
 # Claude Managed Agents Provider
 
+~> **Not for production use — learning & prototyping only.** This is an
+experimental, community-built project intended solely for learning,
+experimentation, and prototyping. It is **NOT** intended, tested, or supported
+for production use. It is provided **"AS IS", without warranty of any kind**,
+and **you use it entirely at your own risk**; the author(s) accept **no
+liability** for any harm arising from its use. The "1.0.0" version denotes
+API/schema stability under SemVer, **not** production-readiness. See the LICENSE
+(MPL 2.0, sections 6 & 7) for the full disclaimer.
+
 A community Terraform / OpenTofu provider for the
 [Anthropic Claude Managed Agents](https://platform.claude.com/docs/en/managed-agents)
 API. Put your agent configuration under Terraform so you can review changes in
@@ -56,7 +65,7 @@ terraform {
   required_providers {
     claude-managed-agents = {
       source  = "modus-agendi/anthropic-claude-managed-agents"
-      version = "~> 0.4"
+      version = "~> 1.0"
     }
   }
 }

@@ -79,8 +79,7 @@ terraform destroy
 
 ## Versioning
 
-Examples target provider `~> 0.2`. If you are on `~> 0.1`, only the flat
-fields of `claude-managed-agents_agent` are available — the nested
-`tools`, `mcp_servers`, `skills`, and `multiagent` blocks, plus the
-`environment`, `memory_store`, `vault`, and `vault_credential` resources,
-all landed in v0.2.
+Examples target provider `~> 1.0` (the first stable line). The full resource
+and data-source surface — agents with nested `tools` / `mcp_servers` / `skills`
+/ `multiagent`, environments, vaults, memory stores, skills, and deployments —
+is available on 1.x. For older `0.x` history see `CHANGELOG.md`.
