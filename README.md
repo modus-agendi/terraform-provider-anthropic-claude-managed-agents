@@ -151,7 +151,12 @@ provider "claude-managed-agents" {
 
 ### Guides
 
-- [Deployments: scheduling and running agents](docs/guides/deployments.md) — scheduled vs manual runs, the `desired_status`/`status` split, mounting resources, reading run history, and the caveats to know before relying on deployments in production.
+- [Deployments: scheduling and running agents](docs/guides/deployments.md) — scheduled vs manual runs, the `desired_status`/`status` split, mounting resources, reading run history, and the caveats to know before relying on deployments.
+- [State security and remote backends](docs/guides/state-security-and-backends.md) — what is and isn't in state, and encrypted/locked backends (S3+KMS, GCS, Terraform Cloud).
+- [Secrets management and rotation](docs/guides/secrets-management-and-rotation.md) — write-only attributes and the rotation ceremony for vault credentials and deployment github tokens.
+- [Import and state recovery](docs/guides/import-and-state-recovery.md) — `terraform import` per resource, the composite vault-credential id, and re-supplying write-only fields after import.
+- [Drift detection and remediation](docs/guides/drift-detection-and-remediation.md) — `plan -refresh-only -detailed-exitcode`, the provider's expected-drift patterns, and `ignore_changes` guidance.
+- [Upgrading and migration](docs/guides/upgrading-and-migration.md) — version constraints, the registry slug/namespace history, and a safe upgrade procedure.
 
 ## Lifecycle gotchas
 

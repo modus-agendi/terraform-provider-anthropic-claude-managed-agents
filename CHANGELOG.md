@@ -28,6 +28,12 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   sweep, a `vault_credential` 404-on-read (external removal → recreate) test,
   and unit + acceptance tests for the new cron validator.
 
+### Documentation
+- Added five production-operations guides (Terraform Registry "Guides" tab):
+  state security & remote backends, secrets management & rotation, import &
+  state recovery, drift detection & remediation, and upgrading & migration.
+  Linked from the README.
+
 ## [1.0.0] - 2026-06-13
 
 First stable release. The resource and data-source schema is now covered by the
