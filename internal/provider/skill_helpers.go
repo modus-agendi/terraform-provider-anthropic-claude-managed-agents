@@ -74,6 +74,13 @@ func walkSkillDir(dir string) ([]client.SkillFile, error) {
 		if _, skip := excludedSkillBasenames[d.Name()]; skip {
 			return nil
 		}
+		// Reject symlinks rather than following them. os.ReadFile below would
+		// otherwise read the symlink's target — a file outside source_dir —
+		// and upload its contents (e.g. a malicious skill template symlinking
+		// to ~/.ssh/id_rsa). A skill must contain only regular files.
+		if d.Type()&fs.ModeSymlink != 0 {
+			return fmt.Errorf("source_dir contains a symlink (%q); symlinks are not followed — a skill must contain only regular files", path)
+		}
 		rel, err := filepath.Rel(dir, path)
 		if err != nil {
 			return fmt.Errorf("rel %q: %w", path, err)
@@ -144,8 +151,10 @@ func validateSkillFilesProvider(files []client.SkillFile) error {
 }
 
 // resolveSkillSourceDir expands relative paths the way Terraform expects:
-// relative to the working directory. Symlinks are followed by filepath.WalkDir
-// implicitly. Strips a trailing slash so the displayed path stays clean.
+// relative to the working directory. The source_dir itself may be a symlink
+// (os.Stat resolves it in walkSkillDir), but symlinks *inside* the tree are
+// rejected by walkSkillDir, not followed. Strips a trailing slash so the
+// displayed path stays clean.
 func resolveSkillSourceDir(in string) string {
 	if in == "" {
 		return in

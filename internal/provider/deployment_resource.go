@@ -144,6 +144,7 @@ func (r *deploymentResource) Schema(_ context.Context, _ resource.SchemaRequest,
 						},
 						"authorization_token": schema.StringAttribute{
 							Optional:            true,
+							Sensitive:           true,
 							WriteOnly:           true,
 							MarkdownDescription: "For `github_repository`: access token for cloning. Write-only — sent to the API but never persisted to state or returned on read. Pair with `authorization_token_wo_version` to trigger re-send on rotation.",
 						},

@@ -6,6 +6,28 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Security
+Pre-1.0.0 hardening. No known exploited issues; these are defense-in-depth
+fixes plus a clean `govulncheck`.
+- **Skill upload no longer follows symlinks.** A symlink inside a skill
+  `source_dir` is now rejected rather than having its target read and
+  uploaded. Previously `os.ReadFile` followed symlinks, so a malicious skill
+  template could symlink to a file outside the directory (e.g. a private key)
+  and exfiltrate it into the uploaded skill.
+- **Bounded HTTP attempts.** The API client now sets a 120s per-attempt
+  timeout (`retryablehttp` defaulted to none), so a stalled server cannot hang
+  `terraform apply` indefinitely.
+- **Dependency + toolchain bump.** `golang.org/x/net` → v0.56.0 and the build
+  toolchain pinned to go1.26.4, clearing GO-2026-5039, GO-2026-5037, and
+  GO-2026-5026. `govulncheck ./...` reports no vulnerabilities.
+- **`authorization_token` marked `Sensitive`** (the deployment
+  `github_repository` token) for consistency with the vault-credential
+  secrets; it was already write-only and never persisted to state.
+- **Corrected the README authentication note.** The provider `api_key` is
+  never written to Terraform state (provider configuration is not persisted);
+  the real exposure of hardcoding it in HCL is config files / version control
+  / `TF_LOG` debug output, not state.
+
 ## [0.5.0] - 2026-06-13
 
 ### Added

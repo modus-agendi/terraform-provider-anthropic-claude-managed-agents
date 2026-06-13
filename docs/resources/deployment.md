@@ -188,7 +188,7 @@ Required:
 Optional:
 
 - `access` (String) For `memory_store`: `read_write` or `read_only`.
-- `authorization_token` (String, [Write-only](https://developer.hashicorp.com/terraform/language/resources/ephemeral#write-only-arguments)) For `github_repository`: access token for cloning. Write-only — sent to the API but never persisted to state or returned on read. Pair with `authorization_token_wo_version` to trigger re-send on rotation.
+- `authorization_token` (String, Sensitive, [Write-only](https://developer.hashicorp.com/terraform/language/resources/ephemeral#write-only-arguments)) For `github_repository`: access token for cloning. Write-only — sent to the API but never persisted to state or returned on read. Pair with `authorization_token_wo_version` to trigger re-send on rotation.
 - `authorization_token_wo_version` (Number) Increment to signal that the write-only `authorization_token` was rotated and must be re-sent. Stored in state (the token itself is not), so changing it produces a diff that re-sends the whole `resources` list from config.
 - `checkout` (Attributes) For `github_repository`: pin to a branch or commit. Defaults to the repo's default branch. (see [below for nested schema](#nestedatt--resources--checkout))
 - `file_id` (String) For `file`: the uploaded file id.
