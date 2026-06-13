@@ -380,7 +380,7 @@ func (f *fakeAPI) handler() http.Handler {
 	})
 
 	depPauseRe := regexp.MustCompile(`^/v1/deployments/([^/]+)/pause$`)
-	depResumeRe := regexp.MustCompile(`^/v1/deployments/([^/]+)/resume$`)
+	depResumeRe := regexp.MustCompile(`^/v1/deployments/([^/]+)/unpause$`)
 	depArchiveRe := regexp.MustCompile(`^/v1/deployments/([^/]+)/archive$`)
 	depItemRe := regexp.MustCompile(`^/v1/deployments/([^/]+)$`)
 
@@ -401,7 +401,7 @@ func (f *fakeAPI) handler() http.Handler {
 			switch r.Method {
 			case http.MethodGet:
 				f.deploymentGet(w, m[1])
-			case http.MethodPatch:
+			case http.MethodPost:
 				f.deploymentUpdate(w, r, m[1])
 			default:
 				http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -1786,6 +1786,15 @@ func (f *fakeAPI) deploymentCreate(w http.ResponseWriter, r *http.Request) {
 		writeAPIErr(w, http.StatusBadRequest, "invalid_request_error", "initial_events must have 1-50 entries")
 		return
 	}
+	// Mirror the real API: a system.message must be the last event in the list
+	// (it also must follow a user.message and is model-dependent; we enforce
+	// the position rule here so the fake is not silently too permissive).
+	for i, ev := range body.InitialEvents {
+		if t, _ := ev["type"].(string); t == "system.message" && i != len(body.InitialEvents)-1 {
+			writeAPIErr(w, http.StatusBadRequest, "invalid_request_error", "invalid deployment: `initial_events`: a `system.message` event must be the last event in the list")
+			return
+		}
+	}
 
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -1797,7 +1806,7 @@ func (f *fakeAPI) deploymentCreate(w http.ResponseWriter, r *http.Request) {
 	stripAuthTokens(body.Resources)
 	f.depCounter++
 	now := time.Now().UTC().Format(time.RFC3339)
-	id := fmt.Sprintf("deployment_FAKE%04d", f.depCounter)
+	id := fmt.Sprintf("depl_FAKE%04d", f.depCounter)
 	if body.Metadata == nil {
 		body.Metadata = map[string]string{}
 	}

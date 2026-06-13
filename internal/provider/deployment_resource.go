@@ -466,7 +466,9 @@ const deploymentInitialEventsMarkdown = "Events sent to each session when the de
 	"Changing this list forces replacement of the deployment (the API does not " +
 	"patch initial events in place). Three variants discriminated by `type`:\n\n" +
 	"  - `user.message` — set `content` to a `jsonencode`d array of content blocks.\n" +
-	"  - `system.message` — privileged context; set `content` likewise.\n" +
+	"  - `system.message` — privileged context; set `content` likewise. Must be the " +
+	"**last** event in the list and follow a `user.message`; supported only on " +
+	"models that accept system messages.\n" +
 	"  - `user.define_outcome` — set `description` (task), optional `rubric`, optional `max_iterations`."
 
 const deploymentResourcesMarkdown = "Resources mounted into each session (max 500). Three variants discriminated " +

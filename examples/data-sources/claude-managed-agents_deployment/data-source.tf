@@ -13,7 +13,7 @@ provider "claude-managed-agents" {}
 # outside Terraform (via the SDK or console) and you want to read its current
 # configuration and observed status.
 data "claude-managed-agents_deployment" "nightly_digest" {
-  id = "deployment_01HqR2k7vXbZ9mNpL3wYcT8f"
+  id = "depl_01HqR2k7vXbZ9mNpL3wYcT8f"
 }
 
 output "deployment_status" {
