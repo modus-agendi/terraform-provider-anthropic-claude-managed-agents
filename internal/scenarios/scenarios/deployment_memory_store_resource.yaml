@@ -1,0 +1,75 @@
+name: deployment_memory_store_resource
+kind: deployment
+timeout: 5m
+
+# A deployment that mounts a memory_store resource and whose initial event is a
+# user.message instructing the agent to write to, then read back from, the
+# mounted store. Verifies that a deployment's `resources` actually mount into
+# the fired session and the agent can use them.
+terraform_config: |
+  resource "claude-managed-agents_environment" "sandbox" {
+    name = "tf-acc-test-scenarios-deploy-mem-env"
+    config = {
+      type       = "cloud"
+      networking = { type = "unrestricted" }
+    }
+  }
+
+  resource "claude-managed-agents_memory_store" "notes" {
+    name = "tf-acc-test-scenarios-deploy-mem"
+  }
+
+  resource "claude-managed-agents_agent" "writer" {
+    name   = "tf-acc-test-scenarios-deploy-mem"
+    model  = "claude-opus-4-7"
+    system = "You are a careful note-taking agent. Use the mounted memory store to persist and retrieve files exactly as instructed."
+    tools = [
+      { type = "agent_toolset_20260401" }
+    ]
+  }
+
+  resource "claude-managed-agents_deployment" "target" {
+    name           = "tf-acc-test-scenarios-deploy-mem"
+    agent          = claude-managed-agents_agent.writer.id
+    environment_id = claude-managed-agents_environment.sandbox.id
+
+    resources = [
+      {
+        type            = "memory_store"
+        memory_store_id = claude-managed-agents_memory_store.notes.id
+        access          = "read_write"
+        instructions    = "Persist and retrieve the user's status files here."
+      }
+    ]
+
+    initial_events = [
+      {
+        type = "user.message"
+        content = jsonencode([{
+          type = "text"
+          text = "Write the exact line `project=alpha; status=green` to a file named status.md in the attached memory store. Then read status.md back and report its exact contents as your final answer."
+        }])
+      }
+    ]
+  }
+
+outcome_description: |
+  Write `project=alpha; status=green` to status.md in the mounted memory
+  store, read it back, and report the exact contents.
+
+rubric: |
+  PASS if the agent's final response reports the contents of status.md read
+  back from the memory store as `project=alpha; status=green` (the agent must
+  have actually used the memory store, not just echoed the instruction). FAIL
+  otherwise.
+
+judge_model: claude-sonnet-4-6
+
+trajectory_checks:
+  - require_event: "agent.tool_use"
+  - require_no_session_errors: true
+
+run_checks:
+  - require_run_trigger_type: "manual"
+  - require_run_session_set: true
+  - require_run_no_error: true

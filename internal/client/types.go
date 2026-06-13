@@ -626,6 +626,20 @@ func (e *SessionEvent) ErrorMessage() (string, error) {
 	return payload.Error.Message, nil
 }
 
+// OutcomeResult extracts the top-level `result` field from a
+// `span.outcome_evaluation_end` event — the verdict of one define_outcome
+// grading iteration (e.g. "satisfied", "max_iterations_reached", "failed").
+// Returns an empty string if the field is absent.
+func (e *SessionEvent) OutcomeResult() (string, error) {
+	var payload struct {
+		Result string `json:"result"`
+	}
+	if err := json.Unmarshal(e.RawData, &payload); err != nil {
+		return "", fmt.Errorf("session event %s: unmarshal outcome_evaluation_end: %w", e.ID, err)
+	}
+	return payload.Result, nil
+}
+
 // JudgeRequest is the input to JudgeVerdict. SystemPrompt + UserPrompt
 // are mapped onto the Messages API as `system` + a single user message.
 type JudgeRequest struct {
