@@ -245,8 +245,20 @@ resource "claude-managed-agents_environment" "e" {
   }
 }
 
-# Exhaustive deployment: every nullable, every nested variant, the write-only
-# github token, and a paused desired_status.
+# Real vault + memory_store so the deployment's vault_ids and memory_store
+# resource reference resolvable ids — this test must pass live, so every
+# reference has to exist. The github_repository and file resource variants
+# need external credentials/uploads and are covered in fake-only tests.
+resource "claude-managed-agents_vault" "v" {
+  display_name = "%s-vault"
+}
+
+resource "claude-managed-agents_memory_store" "m" {
+  name = "%s-mem"
+}
+
+# Exhaustive deployment: every nullable, the resolvable nested variants, and
+# a paused desired_status.
 resource "claude-managed-agents_deployment" "d" {
   name           = %q
   agent          = claude-managed-agents_agent.a.id
@@ -259,11 +271,10 @@ resource "claude-managed-agents_deployment" "d" {
     tier = "gold"
   }
 
-  vault_ids = ["vault_FAKE1", "vault_FAKE2"]
+  vault_ids = [claude-managed-agents_vault.v.id]
 
   initial_events = [
     { type = "user.message", content = jsonencode([{ type = "text", text = "Run the digest." }]) },
-    { type = "system.message", content = jsonencode([{ type = "text", text = "You are precise." }]) },
     {
       type           = "user.define_outcome"
       description    = "Summarize the inbox"
@@ -274,16 +285,8 @@ resource "claude-managed-agents_deployment" "d" {
 
   resources = [
     {
-      type                           = "github_repository"
-      url                            = "https://github.com/acme/widgets"
-      authorization_token            = "ghp_not_in_state"
-      authorization_token_wo_version = 1
-      checkout                       = { type = "commit", sha = "abc123def456" }
-      mount_path                     = "/workspace/widgets"
-    },
-    {
       type            = "memory_store"
-      memory_store_id = "memstore_FAKE"
+      memory_store_id = claude-managed-agents_memory_store.m.id
       access          = "read_write"
       instructions    = "Persist findings here."
     },
@@ -294,7 +297,7 @@ resource "claude-managed-agents_deployment" "d" {
     expression = "0 3 * * *"
     timezone   = "UTC"
   }
-}`, providerConfig(), name, name, name)
+}`, providerConfig(), name, name, name, name, name)
 	})
 }
 

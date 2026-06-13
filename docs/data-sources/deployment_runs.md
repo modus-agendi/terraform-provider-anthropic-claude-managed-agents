@@ -28,7 +28,7 @@ provider "claude-managed-agents" {}
 # fire produces one run; exactly one of `session_id` (success) or `error_type`
 # (failure) is set on each.
 data "claude-managed-agents_deployment_runs" "failures" {
-  deployment_id = "deployment_01HqR2k7vXbZ9mNpL3wYcT8f"
+  deployment_id = "depl_01HqR2k7vXbZ9mNpL3wYcT8f"
 
   # Optional filters (all may be combined):
   trigger_type = "schedule" # "schedule" or "manual"
