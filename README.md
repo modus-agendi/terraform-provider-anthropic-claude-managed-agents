@@ -7,6 +7,14 @@
 [![codecov](https://codecov.io/gh/modus-agendi/terraform-provider-anthropic-claude-managed-agents/graph/badge.svg)](https://codecov.io/gh/modus-agendi/terraform-provider-anthropic-claude-managed-agents)
 [![License: MPL 2.0](https://img.shields.io/badge/license-MPL%202.0-blue.svg)](https://www.mozilla.org/MPL/2.0/)
 
+> ## ⚠️ Not for production use — learning & prototyping only
+>
+> **This is an experimental, community-built project intended solely for learning, experimentation, and prototyping. It is NOT intended, tested, or supported for production use.**
+>
+> It is provided **"AS IS", without warranty of any kind**, express or implied. **You use it entirely at your own risk.** The author(s) and contributors accept **no liability** for any damage, data loss, downtime, cost, security incident, or other harm arising from its use. The "1.0.0" version number denotes API/schema stability under SemVer — it is **not** a statement of production-readiness or fitness for any purpose.
+>
+> See the [LICENSE](LICENSE) (MPL 2.0, sections 6 & 7) for the full warranty disclaimer and limitation of liability.
+
 A Terraform / OpenTofu provider for **Anthropic Claude Managed Agents** — declaratively manage agents (with tools, MCP servers, skills, and multiagent coordination), environments, vaults, custom skills, and memory stores from Terraform configurations.
 
 > **Unofficial.** This is a community project. It is not maintained by, endorsed by, or affiliated with Anthropic. Upstream API: [Claude Managed Agents docs](https://platform.claude.com/docs/en/managed-agents).
@@ -65,7 +73,7 @@ terraform {
   required_providers {
     claude-managed-agents = {
       source  = "modus-agendi/anthropic-claude-managed-agents"
-      version = "~> 0.3"
+      version = "~> 1.0"
     }
   }
 }
@@ -237,7 +245,7 @@ is treated as a gap-finder, not a goal — see `CLAUDE.md`.
 
 ## Versioning
 
-The provider follows [Semantic Versioning](https://semver.org). Pre-1.0 releases reserve the right to make minor breaking changes between minor versions, documented in `CHANGELOG.md`. Post-1.0 will respect semver strictly.
+The provider follows [Semantic Versioning](https://semver.org). As of **v1.0.0** the resource and data-source schema is stable: breaking changes happen only in a new major version (2.0.0), never in a minor or patch release. Pin `version = "~> 1.0"` to receive non-breaking 1.x updates automatically. Breaking changes, when a 2.0 eventually happens, will be called out in `CHANGELOG.md` with a migration note.
 
 A breaking change is one of:
 

@@ -6,6 +6,19 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-06-13
+
+First stable release. The resource and data-source schema is now covered by the
+SemVer stability guarantee: breaking changes will happen only in a future major
+version (2.0.0), never in a minor or patch. There are no schema changes from
+v0.5.0 — this release marks the API surface stable and folds in the pre-1.0
+hardening and documentation below.
+
+**Not production software.** Despite the 1.0.0 tag, this remains an
+experimental project intended for learning and prototyping, provided **as is
+with no warranty** and used **at your own risk**. The version number denotes
+API stability, not production-readiness. See the README and LICENSE.
+
 ### Security
 Pre-1.0.0 hardening. No known exploited issues; these are defense-in-depth
 fixes plus a clean `govulncheck`.
@@ -27,6 +40,22 @@ fixes plus a clean `govulncheck`.
   never written to Terraform state (provider configuration is not persisted);
   the real exposure of hardcoding it in HCL is config files / version control
   / `TF_LOG` debug output, not state.
+
+### Changed
+- All example and documentation `required_providers` version constraints
+  bumped from `~> 0.4` to `~> 1.0`.
+- Minimum build toolchain is now **go1.26.4** (carries the patched standard
+  library; see Security).
+- Pre-release tags (`-rc`, `-beta`) now publish as GitHub pre-releases
+  (`goreleaser` `prerelease: auto`), so a release candidate no longer takes
+  the "latest" badge from the newest stable release.
+
+### Documentation
+- Added a prominent **"not for production / learning & prototyping only / use
+  at your own risk"** disclaimer to the README and the Terraform Registry
+  landing page.
+- The provider overview now lists the Deployments resource and its
+  `deployment` / `deployment_runs` data sources.
 
 ## [0.5.0] - 2026-06-13
 
@@ -483,7 +512,8 @@ v0.3.0 is a no-op for users.
   httptest server by default; live API runs are opt-in via `TF_ACC_LIVE=1`).
 - GitHub Actions workflows for CI and release.
 
-[Unreleased]: https://github.com/modus-agendi/terraform-provider-anthropic-claude-managed-agents/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/modus-agendi/terraform-provider-anthropic-claude-managed-agents/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/modus-agendi/terraform-provider-anthropic-claude-managed-agents/compare/v0.5.0...v1.0.0
 [0.5.0]: https://github.com/modus-agendi/terraform-provider-anthropic-claude-managed-agents/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/modus-agendi/terraform-provider-anthropic-claude-managed-agents/compare/v0.4.0...v0.4.1
 [0.2.2]: https://github.com/andasv/terraform-provider-claude-managed-agents/compare/v0.2.1...v0.2.2

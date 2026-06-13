@@ -2,15 +2,14 @@
 
 ## Supported versions
 
-This is a community-maintained provider. While the public surface is pre-1.0,
-only the **latest minor release** receives security fixes. After the v1.0.0 tag,
-the policy will shift to "last two minor lines."
+This is a community-maintained provider. As of v1.0.0, security fixes target
+the **latest two minor lines** of the current major. Older `0.x` releases are
+unsupported.
 
 | Version | Supported          |
 |---------|--------------------|
-| 0.3.x   | :white_check_mark: |
-| 0.2.x   | :x:                |
-| 0.1.x   | :x:                |
+| 1.0.x   | :white_check_mark: |
+| 0.x     | :x:                |
 
 ## Reporting a vulnerability
 
