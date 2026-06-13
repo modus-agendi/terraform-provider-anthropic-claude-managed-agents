@@ -40,8 +40,20 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   - The `deployment_runs` data source lists append-only run audit records
     with filters (`deployment_id`, `trigger_type`, `has_error`) and surfaces
     the typed run-error taxonomy.
+- **Deployments documentation.** A narrative
+  [Deployments guide](docs/guides/deployments.md) (Terraform Registry "Guides"
+  tab) covering scheduled vs manual runs, the `desired_status`/`status` split,
+  resource mounts, run history, and the caveats (no Terraform-level trigger,
+  undocumented manual-run endpoint, 1-hour minimum cadence, replace-on-events).
+  A worked
+  [`advanced/05-scheduled-deployment-with-outcome`](examples/advanced/05-scheduled-deployment-with-outcome)
+  example, and a README "Testing & quality" section documenting the five test
+  layers and the live-validated L5 cost.
 
 ### Fixed
+- Corrected the `claude-managed-agents_deployment` `id` attribute description:
+  ids use the `depl_…` prefix (confirmed against the live API), not
+  `deployment_…` as the schema text previously stated. Docs-only.
 - Sweepers now run for every registered resource type (agent, environment,
   memory_store, vault, skill) in CI workflows and the `make sweep` target.
   Previously only `claude-managed-agents_agent` was swept, letting test-only

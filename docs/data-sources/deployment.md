@@ -51,7 +51,7 @@ output "deployment_schedule" {
 
 ### Required
 
-- `id` (String) Server-assigned identifier (e.g. `deployment_01ABC...`).
+- `id` (String) Server-assigned identifier (e.g. `depl_01ABC...`).
 
 ### Read-Only
 

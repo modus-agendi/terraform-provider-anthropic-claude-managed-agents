@@ -146,7 +146,7 @@ variable "github_token" {
 - `agent_version` (Number) The concrete agent version the API resolved `agent` to. Computed.
 - `archived_at` (String) ISO 8601 archive timestamp, or `null` if active. `terraform destroy` archives the deployment.
 - `created_at` (String) ISO 8601 creation timestamp.
-- `id` (String) Server-assigned identifier (e.g. `deployment_01ABC...`). Use with `terraform import`.
+- `id` (String) Server-assigned identifier (e.g. `depl_01ABC...`). Use with `terraform import`.
 - `paused_reason` (Attributes) Why the deployment is paused, or `null` when active. `type` is `manual` (paused via `desired_status`) or `error` (auto-paused), with the typed error in `error`. (see [below for nested schema](#nestedatt--paused_reason))
 - `status` (String) Observed run state reported by the API: `active` or `paused`. Read-only. Compare against `desired_status` and `paused_reason` to detect error-pauses.
 

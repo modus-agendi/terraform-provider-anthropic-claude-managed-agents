@@ -25,6 +25,7 @@ Each tutorial is a self-contained Terraform config with its own README.
 | [advanced/02-vault-with-mcp-oauth](advanced/02-vault-with-mcp-oauth) | Vault with `static_bearer` + `mcp_oauth` credentials | `vault`, `vault_credential` × 2 | 15 min |
 | [advanced/03-secure-agent-with-vault](advanced/03-secure-agent-with-vault) | End-to-end secure agent composition | every resource | 20 min |
 | [advanced/04-end-to-end-skill-and-agent](advanced/04-end-to-end-skill-and-agent) | Custom skill + Anthropic prebuilt skill on an agent + memory store | `skill`, `agent`, `memory_store` | 15 min |
+| [advanced/05-scheduled-deployment-with-outcome](advanced/05-scheduled-deployment-with-outcome) | Scheduled deployment, `define_outcome`, mounted memory store, run history + error-pause detection | `deployment`, `agent`, `environment`, `memory_store`, data: `deployment_runs` | 20 min |
 
 ## Canonical examples (Terraform Registry docs)
 
@@ -38,8 +39,11 @@ Compact, idiomatic, exhaustive for that one resource.
 | `claude-managed-agents_memory_store` | [resources/claude-managed-agents_memory_store/resource.tf](resources/claude-managed-agents_memory_store/resource.tf) | Archive vs. hard-delete |
 | `claude-managed-agents_vault` | [resources/claude-managed-agents_vault/resource.tf](resources/claude-managed-agents_vault/resource.tf) | Metadata + lifecycle modes |
 | `claude-managed-agents_vault_credential` | [resources/claude-managed-agents_vault_credential/resource.tf](resources/claude-managed-agents_vault_credential/resource.tf) | Both `auth.type` variants with WriteOnly secrets |
+| `claude-managed-agents_deployment` | [resources/claude-managed-agents_deployment/resource.tf](resources/claude-managed-agents_deployment/resource.tf) | Schedule, `initial_events`, write-only github token; see the [Deployments guide](../docs/guides/deployments.md) |
 | data: `agent` | [data-sources/claude-managed-agents_agent/data-source.tf](data-sources/claude-managed-agents_agent/data-source.tf) | Read an externally-created agent |
 | data: `agent_version` | [data-sources/claude-managed-agents_agent_version/data-source.tf](data-sources/claude-managed-agents_agent_version/data-source.tf) | Look up a historical revision |
+| data: `deployment` | [data-sources/claude-managed-agents_deployment/data-source.tf](data-sources/claude-managed-agents_deployment/data-source.tf) | Read an existing deployment by id |
+| data: `deployment_runs` | [data-sources/claude-managed-agents_deployment_runs/data-source.tf](data-sources/claude-managed-agents_deployment_runs/data-source.tf) | List run audit records; filter + alert on `error_type` |
 | data: `environment` | [data-sources/claude-managed-agents_environment/data-source.tf](data-sources/claude-managed-agents_environment/data-source.tf) | Inspect an existing sandbox |
 | data: `file` | [data-sources/claude-managed-agents_file/data-source.tf](data-sources/claude-managed-agents_file/data-source.tf) | File metadata lookup |
 | data: `memory_store` | [data-sources/claude-managed-agents_memory_store/data-source.tf](data-sources/claude-managed-agents_memory_store/data-source.tf) | Read a memory store |

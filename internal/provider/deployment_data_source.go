@@ -33,7 +33,7 @@ func (d *deploymentDataSource) Schema(_ context.Context, _ datasource.SchemaRequ
 		MarkdownDescription: "Look up an existing Claude Managed Agents deployment by id.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
-				MarkdownDescription: "Server-assigned identifier (e.g. `deployment_01ABC...`).",
+				MarkdownDescription: "Server-assigned identifier (e.g. `depl_01ABC...`).",
 				Required:            true,
 			},
 			"name":           schema.StringAttribute{Computed: true, MarkdownDescription: "Deployment name."},
