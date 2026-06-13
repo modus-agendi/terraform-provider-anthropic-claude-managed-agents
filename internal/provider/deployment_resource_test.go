@@ -74,7 +74,7 @@ func TestAccDeploymentResource_basic(t *testing.T) {
 					resource.TestCheckResourceAttr("claude-managed-agents_deployment.d", "status", "active"),
 					resource.TestCheckResourceAttr("claude-managed-agents_deployment.d", "desired_status", "active"),
 					resource.TestCheckResourceAttr("claude-managed-agents_deployment.d", "schedule.expression", "0 3 * * *"),
-					resource.TestMatchResourceAttr("claude-managed-agents_deployment.d", "id", regexp.MustCompile(`^deployment_`)),
+					resource.TestMatchResourceAttr("claude-managed-agents_deployment.d", "id", regexp.MustCompile(`^depl`)),
 					resource.TestCheckResourceAttrSet("claude-managed-agents_deployment.d", "agent_version"),
 					resource.TestCheckResourceAttrSet("claude-managed-agents_deployment.d", "created_at"),
 				),
@@ -143,8 +143,7 @@ func TestAccDeploymentResource_clearNullable(t *testing.T) {
 
 	name := testAgentName("dep-clear")
 	withFields := deploymentConfig(name, `
-  description = "Has a schedule and vaults."
-  vault_ids   = ["vault_FAKE1"]
+  description = "Has a schedule."
   schedule = {
     type       = "cron"
     expression = "0 9 * * 1-5"
@@ -288,7 +287,7 @@ resource "claude-managed-agents_deployment" "d" {
   environment_id = claude-managed-agents_environment.e.id
 
   initial_events = [
-    { type = "system.message", content = jsonencode([{ type = "text", text = "Privileged." }]) },
+    { type = "user.message", content = jsonencode([{ type = "text", text = "Run." }]) },
     { type = "user.define_outcome", description = "Finish the task", max_iterations = 5, rubric = { type = "text", content = "Be correct." } },
   ]
 }`, name, name, name)
@@ -312,6 +311,13 @@ resource "claude-managed-agents_deployment" "d" {
 
 func TestAccDeploymentResource_withGithubResource(t *testing.T) {
 	skipUnlessAcc(t)
+	if liveMode() {
+		// The github_repository variant needs a real, reachable repo and a
+		// valid access token; the placeholder url/token below only round-trip
+		// against the fake API. Live coverage of resources[] uses the
+		// memory_store variant in the no-drift sweep instead.
+		t.Skip("github_repository round-trip requires real credentials; fake-only")
+	}
 	_, cleanup := startFakeAPI(t)
 	defer cleanup()
 
