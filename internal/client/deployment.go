@@ -43,15 +43,16 @@ func (c *Client) GetDeployment(ctx context.Context, id string) (*Deployment, err
 	return &out, nil
 }
 
-// UpdateDeployment issues PATCH /v1/deployments/{id}. The deployments API has
-// no version/etag field; updates are last-write-wins.
+// UpdateDeployment issues POST /v1/deployments/{id}. The deployments API has
+// no version/etag field; updates are last-write-wins. (The endpoint rejects
+// PATCH with 405 — update is POST, mirroring the agents API.)
 func (c *Client) UpdateDeployment(ctx context.Context, id string, req DeploymentUpdateRequest) (*Deployment, error) {
 	if id == "" {
 		return nil, fmt.Errorf("client.UpdateDeployment: id is required")
 	}
 	var out Deployment
 	path := "/v1/deployments/" + url.PathEscape(id)
-	if err := c.do(ctx, http.MethodPatch, path, req, &out); err != nil {
+	if err := c.do(ctx, http.MethodPost, path, req, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil
@@ -81,14 +82,15 @@ func (c *Client) PauseDeployment(ctx context.Context, id string) (*Deployment, e
 	return &out, nil
 }
 
-// ResumeDeployment issues POST /v1/deployments/{id}/resume and returns the
-// updated deployment (status "active", paused_reason cleared).
+// ResumeDeployment issues POST /v1/deployments/{id}/unpause and returns the
+// updated deployment (status "active", paused_reason cleared). The endpoint is
+// "/unpause", not "/resume" (the latter 404s).
 func (c *Client) ResumeDeployment(ctx context.Context, id string) (*Deployment, error) {
 	if id == "" {
 		return nil, fmt.Errorf("client.ResumeDeployment: id is required")
 	}
 	var out Deployment
-	path := "/v1/deployments/" + url.PathEscape(id) + "/resume"
+	path := "/v1/deployments/" + url.PathEscape(id) + "/unpause"
 	if err := c.do(ctx, http.MethodPost, path, nil, &out); err != nil {
 		return nil, err
 	}
