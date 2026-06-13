@@ -20,10 +20,12 @@ The provider manages:
 - **Vaults** and **vault credentials** — per-user secret containers. Secret payloads use Terraform 1.11 write-only attributes and are never persisted to state.
 - **Custom skills** — multipart upload with content-hash drift detection and immutable versions.
 - **Memory stores** — persistent agent memory attached at session time.
+- **Deployments** — bind an agent to an environment, vaults, mounted resources, and initial events, with an optional cron schedule and decoupled pause/resume. See the [Deployments guide](guides/deployments) for the behaviors and caveats.
 
 Matching data sources look up existing resources by ID, plus a `file` data
-source for Files API metadata and an `agent_version` data source for historical
-agent versions.
+source for Files API metadata, an `agent_version` data source for historical
+agent versions, and a `deployment_runs` data source for the append-only run
+audit log (with its typed error taxonomy).
 
 ~> **Unofficial.** This is a community project. It is not maintained by,
 endorsed by, or affiliated with Anthropic. The Managed Agents API is distinct
