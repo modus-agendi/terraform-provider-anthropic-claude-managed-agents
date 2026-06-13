@@ -141,6 +141,10 @@ provider "claude-managed-agents" {
 | Data source | `claude-managed-agents_vault` | [docs/data-sources/vault.md](docs/data-sources/vault.md) |
 | Data source | `claude-managed-agents_vault_credential` | [docs/data-sources/vault_credential.md](docs/data-sources/vault_credential.md) |
 
+### Guides
+
+- [Deployments: scheduling and running agents](docs/guides/deployments.md) — scheduled vs manual runs, the `desired_status`/`status` split, mounting resources, reading run history, and the caveats to know before relying on deployments in production.
+
 ## Lifecycle gotchas
 
 - **Agent destroy maps to archive.** The upstream API has no `DELETE /v1/agents/{id}` endpoint. `terraform destroy` issues `POST /v1/agents/{id}/archive`. Archived agents are read-only and cannot be unarchived.
@@ -202,6 +206,34 @@ terraform {
 > will fail `terraform init` with "no available releases match the given
 > constraints". Run `rm -rf ~/.terraform.d/plugins/registry.terraform.io/modus-agendi`
 > to drop back to registry-pulled releases.
+
+## Testing & quality
+
+Testing runs in five layers so that cheap, deterministic checks gate every PR
+while the expensive, real-API checks run on a schedule. Full details (and the
+exact CI triggers) are in [CONTRIBUTING.md](CONTRIBUTING.md#test-layers).
+
+| Layer | What it checks | Real API | Runs |
+|---|---|---|---|
+| **L1 Unit** | client methods in isolation | no | every PR (race + coverage) |
+| **L2 Integration** | the provider against an in-process fake API | no | every PR, TF 1.11/1.12/latest |
+| **L3 Live acceptance** | the same provider suite against `api.anthropic.com` | yes | manual + nightly + release gate |
+| **L4 Sweeper** | archives orphaned `tf-acc-test-*` resources | yes (archive only) | around L3/L5 |
+| **L5 Behavioral scenarios** | does a provisioned agent actually *do* the task? | yes (real sessions + LLM-as-judge) | manual + nightly + release gate |
+
+**L5 is the unusual one and worth calling out for transparency.** It provisions
+resources via Terraform, opens a real session, captures the full event
+trajectory, asserts deterministic properties on it, then has a separate judge
+model grade the final answer against a rubric. It bills **real inference
+tokens** — roughly **$0.05–$0.20 per scenario** (the current catalog of six runs
+at about **$0.68 total**). It is a hard gate on releases: a scenario `FAIL`
+blocks goreleaser unless explicitly skipped. See
+[internal/scenarios/README.md](internal/scenarios/README.md) for the scenario
+format, the deployment/lifecycle scenario kinds, and a note on the undocumented
+manual-run endpoint the harness relies on.
+
+Coverage target is **85%** (codecov gates at 70% project / 75% patch). Coverage
+is treated as a gap-finder, not a goal — see `CLAUDE.md`.
 
 ## Versioning
 

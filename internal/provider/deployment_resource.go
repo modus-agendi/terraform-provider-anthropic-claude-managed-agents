@@ -42,7 +42,7 @@ func (r *deploymentResource) Schema(_ context.Context, _ resource.SchemaRequest,
 		MarkdownDescription: deploymentResourceMarkdown,
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
-				MarkdownDescription: "Server-assigned identifier (e.g. `deployment_01ABC...`). Use with `terraform import`.",
+				MarkdownDescription: "Server-assigned identifier (e.g. `depl_01ABC...`). Use with `terraform import`.",
 				Computed:            true,
 				PlanModifiers:       []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},

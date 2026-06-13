@@ -26,6 +26,24 @@ summary table after every run with token totals and a dollar estimate
 keyed by `pricing.go`. The pricing table drifts; the CI line links to
 <https://www.anthropic.com/pricing> for live rates.
 
+### Live validation (2026-06-13)
+
+The full catalog was run live against `api.anthropic.com` — **6/6 PASS**,
+~198s wall, **~$0.68 total**. Actual harness summary:
+
+| Scenario | Kind | Time | Verdict |
+|---|---|---|---|
+| `deployment_define_outcome_csv` | deployment | 72s | PASS — `bash` used, outcome `satisfied`, judge PASS |
+| `deployment_error_taxonomy` | deployment | 5s | PASS — run recorded `environment_archived_error`, 0 tokens |
+| `deployment_memory_store_resource` | deployment | 15s | PASS — mounted store written + read back |
+| `deployment_pause_resume` | lifecycle | 4s | PASS — pause→`manual`, resume→active, 0 tokens |
+| `fibonacci_default_toolset` | agent | 15s | PASS |
+| `multi_capability_research` | agent | 87s | PASS |
+
+The two `define_outcome`/research scenarios dominate cost (cache reads priced
+at 10% of input). The two lifecycle/error scenarios spend zero inference.
+Re-run after any deployment-resource or harness change with the command below.
+
 ## Running locally
 
 ```sh
