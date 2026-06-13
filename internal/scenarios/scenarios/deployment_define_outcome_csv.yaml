@@ -1,0 +1,69 @@
+name: deployment_define_outcome_csv
+kind: deployment
+timeout: 5m
+
+# Headline deployment scenario: a deployment whose only initial event is a
+# user.define_outcome. We fire it via a manual run (POST .../run), and the
+# deployment's own initial_events drive the session autonomously — the agent
+# works toward the outcome and an automatic grader evaluates the rubric until
+# it is satisfied. This is the autonomous task-completion path nothing else in
+# the suite exercises.
+terraform_config: |
+  resource "claude-managed-agents_environment" "sandbox" {
+    name = "tf-acc-test-scenarios-deploy-csv-env"
+    config = {
+      type       = "cloud"
+      networking = { type = "unrestricted" }
+    }
+  }
+
+  resource "claude-managed-agents_agent" "coder" {
+    name   = "tf-acc-test-scenarios-deploy-csv"
+    model  = "claude-opus-4-7"
+    system = "You are a coding agent. Write code to a file with the `write` tool, then run it with the `bash` tool to compute the actual result. Never compute from memory."
+    tools = [
+      { type = "agent_toolset_20260401" }
+    ]
+  }
+
+  resource "claude-managed-agents_deployment" "target" {
+    name           = "tf-acc-test-scenarios-deploy-csv"
+    agent          = claude-managed-agents_agent.coder.id
+    environment_id = claude-managed-agents_environment.sandbox.id
+
+    initial_events = [
+      {
+        type        = "user.define_outcome"
+        description = "Compute the first 10 squares (1^2 through 10^2). Write them to /workspace/squares.csv with a header line `n,square` followed by 10 data rows. Then state the sum of the ten squares as your final answer."
+        rubric = {
+          type    = "text"
+          content = "PASS only if squares.csv was written with a header and 10 data rows, the agent ran code via bash (not from memory), and the reported sum of squares equals 385."
+        }
+        max_iterations = 3
+      }
+    ]
+  }
+
+# Used as the judge's TASK line (deployment scenarios have no `question` — the
+# session is driven by the deployment's initial_events).
+outcome_description: |
+  Compute the first 10 squares, write them to /workspace/squares.csv with a
+  header + 10 rows, and report the sum (which is 385).
+
+rubric: |
+  PASS if the agent's final response states the sum of the first ten squares
+  is 385 AND references writing squares.csv, AND the agent ran code with the
+  bash tool. FAIL if the sum is wrong, no CSV was written, the agent answered
+  from memory, or the session terminated abnormally.
+
+judge_model: claude-sonnet-4-6
+
+trajectory_checks:
+  - require_tool_use_named: "bash"
+  - require_outcome_result: "satisfied"
+  - require_no_session_errors: true
+
+run_checks:
+  - require_run_trigger_type: "manual"
+  - require_run_session_set: true
+  - require_run_no_error: true

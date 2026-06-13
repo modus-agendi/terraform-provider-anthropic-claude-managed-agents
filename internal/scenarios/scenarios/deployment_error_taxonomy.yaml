@@ -1,0 +1,43 @@
+name: deployment_error_taxonomy
+kind: deployment
+timeout: 3m
+
+# Negative path: archive the deployment's environment out-of-band, then fire a
+# manual run. The run cannot create a session, so it records a typed error
+# instead. Verifies the run-error audit + taxonomy. No inference, no judge —
+# near-zero cost. (A manual run does NOT auto-pause the deployment; only
+# scheduled-run failures do, so we assert the run error, not a status change.)
+terraform_config: |
+  resource "claude-managed-agents_environment" "sandbox" {
+    name = "tf-acc-test-scenarios-deploy-err-env"
+    config = {
+      type       = "cloud"
+      networking = { type = "unrestricted" }
+    }
+  }
+
+  resource "claude-managed-agents_agent" "doomed" {
+    name  = "tf-acc-test-scenarios-deploy-err"
+    model = "claude-haiku-4-5-20251001"
+  }
+
+  resource "claude-managed-agents_deployment" "target" {
+    name           = "tf-acc-test-scenarios-deploy-err"
+    agent          = claude-managed-agents_agent.doomed.id
+    environment_id = claude-managed-agents_environment.sandbox.id
+
+    initial_events = [
+      {
+        type    = "user.message"
+        content = jsonencode([{ type = "text", text = "hello" }])
+      }
+    ]
+  }
+
+# Archive the deployment's environment before the manual run so session
+# creation fails with environment_archived_error.
+pre_run_archive: environment
+
+run_checks:
+  - require_run_trigger_type: "manual"
+  - require_run_error_type: "environment_archived_error"

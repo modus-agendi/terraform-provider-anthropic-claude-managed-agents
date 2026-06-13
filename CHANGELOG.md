@@ -7,6 +7,16 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- **L5 behavioral scenarios for deployments.** The scenario harness gained
+  three `kind`s (`agent` — the original; `deployment`; `lifecycle`). Deployment
+  scenarios fire a deployment via a manual run and judge the resulting
+  autonomous session; lifecycle scenarios assert pause/resume. Four scenarios
+  ship: an autonomous `user.define_outcome` task (write+verify a CSV), a
+  mounted `memory_store` resource, a run-time error-taxonomy path
+  (`environment_archived_error`), and a pause/resume lifecycle check. New
+  `run_checks` / `lifecycle_checks` / `require_outcome_result` assertions and a
+  `client.TriggerDeployment` method back them. (The manual-run endpoint
+  `POST /v1/deployments/{id}/run` is undocumented; confirmed by live probe.)
 - **`claude-managed-agents_deployment` resource** plus
   `claude-managed-agents_deployment` and `claude-managed-agents_deployment_runs`
   data sources, covering the Deployments beta API

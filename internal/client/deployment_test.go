@@ -444,6 +444,79 @@ func TestListDeploymentRuns_RemainingFiltersAndCursor(t *testing.T) {
 	}
 }
 
+func TestTriggerDeployment_HappyPath(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/v1/deployments/deployment_FAKE01/run" {
+			t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"id":"drun_1","type":"deployment_run","agent":{"id":"a","type":"agent","version":1},"deployment_id":"deployment_FAKE01","created_at":"2026-06-13T00:00:00Z","session_id":"sesn_9","error":null,"trigger_context":{"type":"manual"}}`))
+	}))
+	defer srv.Close()
+
+	c := newTestClient(t, srv)
+	run, err := c.TriggerDeployment(context.Background(), "deployment_FAKE01")
+	if err != nil {
+		t.Fatalf("TriggerDeployment: %v", err)
+	}
+	if run.SessionID == nil || *run.SessionID != "sesn_9" {
+		t.Errorf("SessionID = %v, want sesn_9", run.SessionID)
+	}
+	if run.TriggerContext.Type != "manual" {
+		t.Errorf("TriggerContext.Type = %q, want manual", run.TriggerContext.Type)
+	}
+	if run.Error != nil {
+		t.Errorf("Error = %+v, want nil", run.Error)
+	}
+}
+
+func TestTriggerDeployment_RunError(t *testing.T) {
+	// A manual run can fail to create a session (e.g. archived environment);
+	// the run record carries the typed error, not an HTTP error.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"id":"drun_2","type":"deployment_run","agent":{"id":"a","type":"agent","version":1},"deployment_id":"deployment_FAKE01","created_at":"2026-06-13T00:00:00Z","session_id":null,"error":{"type":"environment_archived_error","message":"env is archived"},"trigger_context":{"type":"manual"}}`))
+	}))
+	defer srv.Close()
+
+	c := newTestClient(t, srv)
+	run, err := c.TriggerDeployment(context.Background(), "deployment_FAKE01")
+	if err != nil {
+		t.Fatalf("TriggerDeployment: %v", err)
+	}
+	if run.SessionID != nil {
+		t.Errorf("SessionID = %v, want nil on error run", run.SessionID)
+	}
+	if run.Error == nil || run.Error.Type != "environment_archived_error" {
+		t.Errorf("Error = %+v", run.Error)
+	}
+}
+
+func TestTriggerDeployment_RequiresID(t *testing.T) {
+	c, err := New(Config{APIKey: "sk-test"})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	if _, err := c.TriggerDeployment(context.Background(), ""); err == nil {
+		t.Error("expected error for empty id")
+	}
+}
+
+func TestSessionEventOutcomeResult(t *testing.T) {
+	e := SessionEvent{
+		ID:      "evt_1",
+		Type:    "span.outcome_evaluation_end",
+		RawData: json.RawMessage(`{"type":"span.outcome_evaluation_end","result":"satisfied","iteration":1}`),
+	}
+	got, err := e.OutcomeResult()
+	if err != nil {
+		t.Fatalf("OutcomeResult: %v", err)
+	}
+	if got != "satisfied" {
+		t.Errorf("OutcomeResult = %q, want satisfied", got)
+	}
+}
+
 func TestGetDeploymentRun_HappyPath(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/v1/deployment_runs/drun_1" {
