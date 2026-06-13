@@ -136,10 +136,10 @@ variable "github_token" {
 
 - `description` (String) Free-form description. Optional. Set to `null` to clear.
 - `desired_status` (String) Intended run state: `active` or `paused`. Defaults to `active`. Changing it pauses or resumes the deployment via the pause/resume endpoints. This is your INTENT — it is independent of the observed `status`, so an automatic error-pause (which moves `status` to `paused` while `desired_status` stays `active`) does NOT cause Terraform to fight the API. To resume after an error-pause, run `terraform apply` once the underlying cause is fixed.
-- `metadata` (Map of String) Arbitrary string-string labels (max 16 keys). Merge semantics: removing a key from HCL deletes it server-side.
+- `metadata` (Map of String) Arbitrary string-string labels (max 16 keys). Merge semantics: removing a key from HCL deletes it server-side. Omit the attribute to leave it unset; an explicit empty map (`{}`) is rejected.
 - `resources` (Attributes List) Resources mounted into each session (max 500). Three variants discriminated by `type`: `github_repository` (with a write-only `authorization_token`), `file`, and `memory_store`. The whole list is replaced on any change. (see [below for nested schema](#nestedatt--resources))
 - `schedule` (Attributes) Optional cron schedule. Omit for a manually-triggered deployment. The API's read-only next-run enrichment is not surfaced in state (to keep plans clean); query it via the API/console. (see [below for nested schema](#nestedatt--schedule))
-- `vault_ids` (List of String) Vault ids whose credentials are mounted into each session (max 50). Mutable.
+- `vault_ids` (List of String) Vault ids whose credentials are mounted into each session (max 50). Mutable. Omit the attribute to leave it unset; an explicit empty list (`[]`) is rejected.
 
 ### Read-Only
 

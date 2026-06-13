@@ -155,7 +155,7 @@ output "code_review_version" {
 
 - `description` (String) Free-form description. Optional. Set to `null` to clear.
 - `mcp_servers` (Attributes List) MCP servers the agent may connect to at session runtime. Mutable. Sending an empty list clears server-side state. The upstream API requires that every MCP server be referenced by a matching `tools` entry of type `mcp_toolset`. (see [below for nested schema](#nestedatt--mcp_servers))
-- `metadata` (Map of String) Arbitrary string-string labels. Full-replace on update: the provider sends the exact map declared in HCL, and the upstream API replaces whatever was stored. Removing a key from your HCL deletes it server-side.
+- `metadata` (Map of String) Arbitrary string-string labels. Full-replace on update: the provider sends the exact map declared in HCL, and the upstream API replaces whatever was stored. Removing a key from your HCL deletes it server-side. Omit the attribute to leave it unset; an explicit empty map (`{}`) is rejected.
 - `multiagent` (Attributes) Multi-agent coordinator config. Mutable. Set to null to clear. (see [below for nested schema](#nestedatt--multiagent))
 - `skills` (Attributes List) Skills the agent has access to. Mutable. (see [below for nested schema](#nestedatt--skills))
 - `system` (String) System prompt for the agent. Optional. Set to `null` to clear.

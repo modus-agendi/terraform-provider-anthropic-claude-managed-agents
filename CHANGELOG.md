@@ -6,6 +6,18 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+- An explicit empty collection on a user-settable optional attribute now fails
+  at plan time with a clear, actionable error instead of the cryptic "Provider
+  produced inconsistent result after apply" crash (fixes #79). The upstream API
+  normalizes an empty list/map to null, which Terraform core cannot represent
+  consistently, so the provider rejects the empty form and asks you to omit the
+  attribute instead. Applies to `claude-managed-agents_environment`
+  `config.networking.allowed_hosts`, `claude-managed-agents_deployment`
+  `vault_ids` / `resources` / `metadata`, and `claude-managed-agents_agent` /
+  `claude-managed-agents_vault` `metadata`. Omitting the attribute, or providing
+  at least one element, both work as before.
+
 ## [1.0.0] - 2026-06-13
 
 First stable release. The resource and data-source schema is now covered by the

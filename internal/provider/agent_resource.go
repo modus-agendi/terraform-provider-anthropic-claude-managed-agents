@@ -12,6 +12,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/objectplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/modus-agendi/terraform-provider-anthropic-claude-managed-agents/internal/client"
@@ -61,9 +62,10 @@ func (r *agentResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 				Optional:            true,
 			},
 			"metadata": schema.MapAttribute{
-				MarkdownDescription: "Arbitrary string-string labels. Full-replace on update: the provider sends the exact map declared in HCL, and the upstream API replaces whatever was stored. Removing a key from your HCL deletes it server-side.",
+				MarkdownDescription: "Arbitrary string-string labels. Full-replace on update: the provider sends the exact map declared in HCL, and the upstream API replaces whatever was stored. Removing a key from your HCL deletes it server-side. Omit the attribute to leave it unset; an explicit empty map (`{}`) is rejected.",
 				Optional:            true,
 				ElementType:         types.StringType,
+				Validators:          []validator.Map{nonEmptyMap()},
 			},
 			"version": schema.Int64Attribute{
 				MarkdownDescription: "Server-managed monotonic version. Used internally for optimistic concurrency on update.",
