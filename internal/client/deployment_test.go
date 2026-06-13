@@ -177,7 +177,8 @@ func TestGetDeployment_NotFound(t *testing.T) {
 
 func TestUpdateDeployment_PatchSemantics(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPatch || r.URL.Path != "/v1/deployments/deployment_FAKE01" {
+		// Update is POST, not PATCH (the real endpoint 405s on PATCH).
+		if r.Method != http.MethodPost || r.URL.Path != "/v1/deployments/deployment_FAKE01" {
 			t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
 		}
 		var body map[string]any
@@ -266,7 +267,7 @@ func TestPauseResumeDeployment(t *testing.T) {
 		switch r.URL.Path {
 		case "/v1/deployments/deployment_FAKE01/pause":
 			_, _ = w.Write([]byte(`{"id":"deployment_FAKE01","type":"deployment","name":"x","agent":{"id":"a","type":"agent","version":1},"environment_id":"e","metadata":{},"initial_events":[],"resources":[],"vault_ids":[],"status":"paused","paused_reason":{"type":"manual"},"created_at":"2026-06-10T00:00:00Z","updated_at":"2026-06-10T00:00:00Z","archived_at":null}`))
-		case "/v1/deployments/deployment_FAKE01/resume":
+		case "/v1/deployments/deployment_FAKE01/unpause":
 			_, _ = w.Write([]byte(`{"id":"deployment_FAKE01","type":"deployment","name":"x","agent":{"id":"a","type":"agent","version":1},"environment_id":"e","metadata":{},"initial_events":[],"resources":[],"vault_ids":[],"status":"active","paused_reason":null,"created_at":"2026-06-10T00:00:00Z","updated_at":"2026-06-10T00:00:00Z","archived_at":null}`))
 		default:
 			t.Errorf("unexpected path %s", r.URL.Path)

@@ -807,7 +807,7 @@ type DeploymentCreateRequest struct {
 	VaultIDs      []string                 `json:"vault_ids,omitempty"`
 }
 
-// DeploymentUpdateRequest is the PATCH /v1/deployments/{id} body. Every field
+// DeploymentUpdateRequest is the POST /v1/deployments/{id} body. Every field
 // is optional; an omitted field is left unchanged. There is no version/etag —
 // updates are last-write-wins.
 //
