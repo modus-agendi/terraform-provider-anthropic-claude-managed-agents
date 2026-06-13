@@ -14,6 +14,7 @@ import (
 	"io"
 	"net/url"
 	"strings"
+	"time"
 
 	retryablehttp "github.com/hashicorp/go-retryablehttp"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
@@ -81,6 +82,11 @@ func New(cfg Config) (*Client, error) {
 	rc.RetryMax = retries
 	rc.Logger = nil // tflog handles our logging
 	rc.CheckRetry = retryablehttp.DefaultRetryPolicy
+	// Bound each attempt so a stalled server cannot hang `terraform apply`
+	// indefinitely. retryablehttp defaults HTTPClient.Timeout to 0 (no limit).
+	// 120s is generous enough for a 30 MB skill multipart upload on a slow link
+	// while still capping a hung connection; retries remain bounded by RetryMax.
+	rc.HTTPClient.Timeout = 120 * time.Second
 
 	return &Client{
 		httpClient: rc,
