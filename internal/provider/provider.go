@@ -102,6 +102,7 @@ func (p *claudeProvider) Configure(ctx context.Context, req provider.ConfigureRe
 func (p *claudeProvider) Resources(_ context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
 		newAgentResource,
+		newDeploymentResource,
 		newEnvironmentResource,
 		newMemoryStoreResource,
 		newSkillResource,
@@ -114,6 +115,8 @@ func (p *claudeProvider) DataSources(_ context.Context) []func() datasource.Data
 	return []func() datasource.DataSource{
 		newAgentDataSource,
 		newAgentVersionDataSource,
+		newDeploymentDataSource,
+		newDeploymentRunsDataSource,
 		newEnvironmentDataSource,
 		newFileDataSource,
 		newMemoryStoreDataSource,
