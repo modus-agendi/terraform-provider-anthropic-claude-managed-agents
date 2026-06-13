@@ -6,6 +6,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-06-13
+
 ### Added
 - Deployment `schedule.expression` is now validated as a 5-field POSIX cron at
   plan time. A malformed expression or an `@daily`-style shortcut (which the
@@ -540,7 +542,8 @@ v0.3.0 is a no-op for users.
   httptest server by default; live API runs are opt-in via `TF_ACC_LIVE=1`).
 - GitHub Actions workflows for CI and release.
 
-[Unreleased]: https://github.com/modus-agendi/terraform-provider-anthropic-claude-managed-agents/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/modus-agendi/terraform-provider-anthropic-claude-managed-agents/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/modus-agendi/terraform-provider-anthropic-claude-managed-agents/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/modus-agendi/terraform-provider-anthropic-claude-managed-agents/compare/v0.5.0...v1.0.0
 [0.5.0]: https://github.com/modus-agendi/terraform-provider-anthropic-claude-managed-agents/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/modus-agendi/terraform-provider-anthropic-claude-managed-agents/compare/v0.4.0...v0.4.1
