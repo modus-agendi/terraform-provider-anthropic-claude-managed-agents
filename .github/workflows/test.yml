@@ -146,8 +146,14 @@ jobs:
         env:
           TF_ACC: "1"
           COVERAGE_OUT: coverage-acc.out
+          # Race-detect on one matrix entry only. The race surface (the
+          # in-process fake API server shared across -parallel 4 tests) is
+          # identical for every Terraform version, so checking it once is
+          # enough, and -race roughly doubles this job's wall-clock.
+          # -covermode=atomic (already set) is required with -race.
+          RACE: ${{ matrix.terraform == '1.11.*' && '-race' || '' }}
         run: |
-          go test \
+          go test $RACE \
             -coverprofile="$COVERAGE_OUT" \
             -coverpkg=./internal/... \
             -covermode=atomic \

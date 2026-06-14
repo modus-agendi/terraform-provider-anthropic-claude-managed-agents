@@ -6,6 +6,12 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Testing
+- CI now runs the httptest acceptance layer under the race detector (on the
+  `1.11.*` matrix entry), closing a parity gap: this is the layer where a
+  shared in-process fake API runs alongside `-parallel 4` tests, yet it was
+  the only layer not race-checked. No latent races were surfaced. (#87)
+
 ## [1.1.0] - 2026-06-13
 
 ### Added
