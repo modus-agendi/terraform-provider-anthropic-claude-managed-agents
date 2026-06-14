@@ -6,6 +6,18 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+- Reconciled the `metadata` documentation, which contradicted itself: the
+  schema and generated docs described `agent.metadata` / `vault.metadata` as
+  "full-replace" while the README described it as a key-level merge. The docs
+  now consistently describe the actual behavior: `metadata` is
+  Terraform-authoritative. After apply the server's metadata equals the map in
+  your HCL, and a key added out-of-band is reconciled away on the next apply
+  (the wire format is a JSON merge-patch, but refresh re-reads the full server
+  map, so HCL stays authoritative). Added
+  `TestAccAgentResource_metadataOutOfBandKeyRemoved` pinning that an
+  out-of-band key is removed on the next apply. (#86)
+
 ## [1.1.0] - 2026-06-13
 
 ### Added

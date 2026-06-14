@@ -17,7 +17,7 @@ resource "claude-managed-agents_agent" "code_review" {
   system      = "Review diffs for correctness, style, and security. Cite filenames and line numbers."
   description = "Pairs on Go and Terraform code reviews."
 
-  # Full-replace on update: removing a key from HCL deletes it server-side.
+  # Terraform owns this map: removing a key here deletes it server-side.
   metadata = {
     team        = "platform"
     environment = "prod"

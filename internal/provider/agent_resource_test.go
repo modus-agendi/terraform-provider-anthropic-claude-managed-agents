@@ -10,6 +10,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/knownvalue"
 	"github.com/hashicorp/terraform-plugin-testing/plancheck"
 	"github.com/hashicorp/terraform-plugin-testing/statecheck"
+	"github.com/hashicorp/terraform-plugin-testing/terraform"
 	"github.com/hashicorp/terraform-plugin-testing/tfjsonpath"
 )
 
@@ -198,6 +199,69 @@ func TestAccAgentResource_metadataMerge(t *testing.T) {
 					resource.TestCheckResourceAttr("claude-managed-agents_agent.a", "metadata.team", "platform"),
 					resource.TestCheckResourceAttr("claude-managed-agents_agent.a", "metadata.cost", "high"),
 					resource.TestCheckNoResourceAttr("claude-managed-agents_agent.a", "metadata.owner"),
+				),
+			},
+		},
+	})
+}
+
+// TestAccAgentResource_metadataOutOfBandKeyRemoved pins the metadata contract:
+// metadata is Terraform-authoritative. A key written to the server out-of-band
+// (never declared in HCL) is re-read into state on refresh and removed on the
+// next apply, so a no-op re-apply converges the server back to exactly the HCL
+// map. The wire format is a merge-patch, but refresh makes HCL authoritative.
+func TestAccAgentResource_metadataOutOfBandKeyRemoved(t *testing.T) {
+	if os.Getenv("TF_ACC") == "" {
+		t.Skip("set TF_ACC=1 to run acceptance tests")
+	}
+	if liveMode() {
+		t.Skip("out-of-band metadata injection requires the in-process fake API")
+	}
+
+	api, cleanup := startFakeAPI(t)
+	defer cleanup()
+
+	name := testAgentName("metadata-oob")
+	cfg := agentResourceConfig("a", name, `
+  metadata = {
+    team = "platform"
+  }`)
+
+	var agentID string
+
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: cfg,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("claude-managed-agents_agent.a", "metadata.team", "platform"),
+					func(s *terraform.State) error {
+						agentID = s.RootModule().Resources["claude-managed-agents_agent.a"].Primary.ID
+						return nil
+					},
+				),
+			},
+			{
+				// Write a key the HCL never declares, directly on the server.
+				PreConfig: func() {
+					api.MutateAgent(agentID, func(a *fakeAgent) { a.Metadata["ext"] = "set-by-api" })
+					if !api.AgentHasMetadataKey(agentID, "ext") {
+						t.Fatal("precondition failed: out-of-band key 'ext' was not injected")
+					}
+				},
+				// Same config: refresh re-reads {team, ext} into state, the plan
+				// removes ext, and apply nulls it server-side.
+				Config: cfg,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("claude-managed-agents_agent.a", "metadata.team", "platform"),
+					resource.TestCheckNoResourceAttr("claude-managed-agents_agent.a", "metadata.ext"),
+					func(s *terraform.State) error {
+						if api.AgentHasMetadataKey(agentID, "ext") {
+							return fmt.Errorf("out-of-band metadata key 'ext' survived re-apply; metadata is meant to be Terraform-authoritative")
+						}
+						return nil
+					},
 				),
 			},
 		},

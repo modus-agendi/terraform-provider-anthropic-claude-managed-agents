@@ -5,8 +5,9 @@ Adds optional flat fields to the minimal agent.
 ## What you'll learn
 
 - How to set `system`, `description`, and `metadata` on an agent.
-- That `metadata` uses full-replace semantics: removing a key from your
-  HCL deletes it server-side.
+- That `metadata` is Terraform-authoritative: after apply the server matches
+  your HCL, so removing a key deletes it server-side and a key added
+  out-of-band is removed on the next apply.
 - Setting `system` or `description` to `null` (or removing the line)
   clears the field on the next apply.
 

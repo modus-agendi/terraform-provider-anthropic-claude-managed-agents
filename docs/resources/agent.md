@@ -9,7 +9,7 @@ description: |-
   Updates
   Updates use server-side optimistic concurrency via the version field, which the provider manages automatically. If you see a version conflict in a plan, run terraform apply -refresh-only to pull the current server version into state.
   Metadata
-  The metadata map uses full-replace semantics: the provider sends the exact map declared in HCL on every update, and the upstream API replaces whatever was stored. Removing a key from your HCL deletes it server-side.
+  The metadata map is Terraform-authoritative: after apply, the server's metadata equals the map declared in HCL. Removing a key deletes it server-side, and a key added out-of-band (via the API directly) surfaces as drift on the next refresh and is removed on the next apply. On the wire the provider sends a JSON merge-patch (only the keys you changed, plus an explicit null for keys you removed) rather than the whole map, but because refresh re-reads the full server map the net effect is that your HCL is authoritative.
   Server-side nested fields
   All four nested-config fields (tools, mcp_servers, skills, multiagent) are first-class HCL as of v0.2. Sending an empty list clears server-side state; omitting the attribute leaves it unchanged.
 ---
@@ -28,7 +28,7 @@ Updates use server-side optimistic concurrency via the `version` field, which th
 
 ### Metadata
 
-The `metadata` map uses full-replace semantics: the provider sends the exact map declared in HCL on every update, and the upstream API replaces whatever was stored. Removing a key from your HCL deletes it server-side.
+The `metadata` map is Terraform-authoritative: after `apply`, the server's metadata equals the map declared in HCL. Removing a key deletes it server-side, and a key added out-of-band (via the API directly) surfaces as drift on the next refresh and is removed on the next apply. On the wire the provider sends a JSON merge-patch (only the keys you changed, plus an explicit null for keys you removed) rather than the whole map, but because refresh re-reads the full server map the net effect is that your HCL is authoritative.
 
 ### Server-side nested fields
 
@@ -56,7 +56,7 @@ resource "claude-managed-agents_agent" "code_review" {
   system      = "Review diffs for correctness, style, and security. Cite filenames and line numbers."
   description = "Pairs on Go and Terraform code reviews."
 
-  # Full-replace on update: removing a key from HCL deletes it server-side.
+  # Terraform owns this map: removing a key here deletes it server-side.
   metadata = {
     team        = "platform"
     environment = "prod"
@@ -155,7 +155,7 @@ output "code_review_version" {
 
 - `description` (String) Free-form description. Optional. Set to `null` to clear.
 - `mcp_servers` (Attributes List) MCP servers the agent may connect to at session runtime. Mutable. Sending an empty list clears server-side state. The upstream API requires that every MCP server be referenced by a matching `tools` entry of type `mcp_toolset`. (see [below for nested schema](#nestedatt--mcp_servers))
-- `metadata` (Map of String) Arbitrary string-string labels. Full-replace on update: the provider sends the exact map declared in HCL, and the upstream API replaces whatever was stored. Removing a key from your HCL deletes it server-side. Omit the attribute to leave it unset; an explicit empty map (`{}`) is rejected.
+- `metadata` (Map of String) Arbitrary string-string labels. Terraform owns this map: after apply the server's metadata equals what you declare here, so removing a key deletes it server-side and a key added out-of-band is removed on the next apply. Omit the attribute to leave it unset; an explicit empty map (`{}`) is rejected.
 - `multiagent` (Attributes) Multi-agent coordinator config. Mutable. Set to null to clear. (see [below for nested schema](#nestedatt--multiagent))
 - `skills` (Attributes List) Skills the agent has access to. Mutable. (see [below for nested schema](#nestedatt--skills))
 - `system` (String) System prompt for the agent. Optional. Set to `null` to clear.
