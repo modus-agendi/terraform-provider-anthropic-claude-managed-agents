@@ -62,7 +62,7 @@ func (r *agentResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 				Optional:            true,
 			},
 			"metadata": schema.MapAttribute{
-				MarkdownDescription: "Arbitrary string-string labels. Full-replace on update: the provider sends the exact map declared in HCL, and the upstream API replaces whatever was stored. Removing a key from your HCL deletes it server-side. Omit the attribute to leave it unset; an explicit empty map (`{}`) is rejected.",
+				MarkdownDescription: "Arbitrary string-string labels. Terraform owns this map: after apply the server's metadata equals what you declare here, so removing a key deletes it server-side and a key added out-of-band is removed on the next apply. Omit the attribute to leave it unset; an explicit empty map (`{}`) is rejected.",
 				Optional:            true,
 				ElementType:         types.StringType,
 				Validators:          []validator.Map{nonEmptyMap()},
@@ -438,6 +438,6 @@ const agentResourceMarkdown = "Manages a Claude Managed Agents agent.\n\n" +
 	"### Updates\n\n" +
 	"Updates use server-side optimistic concurrency via the `version` field, which the provider manages automatically. If you see a version conflict in a plan, run `terraform apply -refresh-only` to pull the current server version into state.\n\n" +
 	"### Metadata\n\n" +
-	"The `metadata` map uses full-replace semantics: the provider sends the exact map declared in HCL on every update, and the upstream API replaces whatever was stored. Removing a key from your HCL deletes it server-side.\n\n" +
+	"The `metadata` map is Terraform-authoritative: after `apply`, the server's metadata equals the map declared in HCL. Removing a key deletes it server-side, and a key added out-of-band (via the API directly) surfaces as drift on the next refresh and is removed on the next apply. On the wire the provider sends a JSON merge-patch (only the keys you changed, plus an explicit null for keys you removed) rather than the whole map, but because refresh re-reads the full server map the net effect is that your HCL is authoritative.\n\n" +
 	"### Server-side nested fields\n\n" +
 	"All four nested-config fields (`tools`, `mcp_servers`, `skills`, `multiagent`) are first-class HCL as of v0.2. Sending an empty list clears server-side state; omitting the attribute leaves it unchanged."

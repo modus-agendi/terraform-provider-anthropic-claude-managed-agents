@@ -299,6 +299,20 @@ func (f *fakeAPI) MutateAgent(id string, mutate func(a *fakeAgent)) {
 	}
 }
 
+// AgentHasMetadataKey reports, under lock, whether the stored agent carries the
+// given metadata key. Read-only (no version bump), so it is safe to call from
+// test checks under -race.
+func (f *fakeAPI) AgentHasMetadataKey(id, key string) bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	a, ok := f.agents[id]
+	if !ok {
+		return false
+	}
+	_, ok = a.Metadata[key]
+	return ok
+}
+
 // Snapshot returns a copy of the agent with id, or nil. For test assertions.
 func (f *fakeAPI) Snapshot(id string) *fakeAgent {
 	f.mu.Lock()

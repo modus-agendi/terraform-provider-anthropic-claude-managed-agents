@@ -7,7 +7,7 @@ description: |-
   Lifecycle on destroy
   By default, terraform destroy archives the vault (POST /v1/vaults/{id}/archive). Archive cascades through credentials: their secret payloads are purged but the records remain visible for audit. Set delete_on_destroy = true to hard-delete; that removes the vault and every credential without retention.
   Updates
-  display_name and metadata are mutable. The metadata map uses full-replace semantics: the provider sends the exact map declared in HCL on every update, and the upstream API replaces whatever was stored. Removing a key from your HCL deletes it server-side.
+  display_name and metadata are mutable. The metadata map is Terraform-authoritative: after apply the server's metadata equals the map declared in HCL, so removing a key deletes it server-side and a key added out-of-band is removed on the next apply. On the wire the provider sends a JSON merge-patch rather than the whole map, but because refresh re-reads the full server map your HCL stays authoritative.
 ---
 
 # claude-managed-agents_vault (Resource)
@@ -20,7 +20,7 @@ By default, `terraform destroy` archives the vault (`POST /v1/vaults/{id}/archiv
 
 ### Updates
 
-`display_name` and `metadata` are mutable. The metadata map uses full-replace semantics: the provider sends the exact map declared in HCL on every update, and the upstream API replaces whatever was stored. Removing a key from your HCL deletes it server-side.
+`display_name` and `metadata` are mutable. The `metadata` map is Terraform-authoritative: after `apply` the server's metadata equals the map declared in HCL, so removing a key deletes it server-side and a key added out-of-band is removed on the next apply. On the wire the provider sends a JSON merge-patch rather than the whole map, but because refresh re-reads the full server map your HCL stays authoritative.
 
 ## Example Usage
 
@@ -71,7 +71,7 @@ output "alice_vault_id" {
 ### Optional
 
 - `delete_on_destroy` (Boolean) When `true`, `terraform destroy` issues `DELETE /v1/vaults/{id}` which permanently removes the vault and cascades through every credential. When `false` (the default), destroy archives the vault, preserving the audit trail while purging secrets and freeing the bound MCP server URLs.
-- `metadata` (Map of String) Arbitrary string-string labels. Full-replace on update: removing a key from your HCL deletes it server-side. Omit the attribute to leave it unset; an explicit empty map (`{}`) is rejected.
+- `metadata` (Map of String) Arbitrary string-string labels. Terraform owns this map: after apply the server's metadata equals what you declare here, so removing a key deletes it server-side and a key added out-of-band is removed on the next apply. Omit the attribute to leave it unset; an explicit empty map (`{}`) is rejected.
 
 ### Read-Only
 
