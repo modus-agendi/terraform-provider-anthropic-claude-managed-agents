@@ -40,9 +40,26 @@ func (d *vaultCredentialDataSource) Schema(_ context.Context, _ datasource.Schem
 				Computed:            true,
 				MarkdownDescription: "Auth shape (secrets omitted).",
 				Attributes: map[string]schema.Attribute{
-					"type":           schema.StringAttribute{Computed: true, MarkdownDescription: "`static_bearer` or `mcp_oauth`."},
-					"mcp_server_url": schema.StringAttribute{Computed: true, MarkdownDescription: "MCP server URL this credential is bound to."},
-					"expires_at":     schema.StringAttribute{Computed: true, MarkdownDescription: "Access token expiry (mcp_oauth only)."},
+					"type":           schema.StringAttribute{Computed: true, MarkdownDescription: "`static_bearer`, `mcp_oauth`, or `environment_variable`."},
+					"mcp_server_url": schema.StringAttribute{Computed: true, MarkdownDescription: "MCP server URL this credential is bound to (null for `environment_variable`)."},
+					"secret_name":    schema.StringAttribute{Computed: true, MarkdownDescription: "Environment variable name (environment_variable only)."},
+					"networking": schema.SingleNestedAttribute{
+						Computed:            true,
+						MarkdownDescription: "Outbound hosts the secret is substituted on (environment_variable only).",
+						Attributes: map[string]schema.Attribute{
+							"type":          schema.StringAttribute{Computed: true, MarkdownDescription: "`limited` or `unrestricted`."},
+							"allowed_hosts": schema.ListAttribute{Computed: true, ElementType: types.StringType, MarkdownDescription: "Hosts the secret is substituted on (`limited` only)."},
+						},
+					},
+					"injection_location": schema.SingleNestedAttribute{
+						Computed:            true,
+						MarkdownDescription: "Where the placeholder is substituted in outbound requests (environment_variable only).",
+						Attributes: map[string]schema.Attribute{
+							"header": schema.BoolAttribute{Computed: true, MarkdownDescription: "Substituted in request header values."},
+							"body":   schema.BoolAttribute{Computed: true, MarkdownDescription: "Substituted in the request body."},
+						},
+					},
+					"expires_at": schema.StringAttribute{Computed: true, MarkdownDescription: "Access token expiry (mcp_oauth only)."},
 					"refresh": schema.SingleNestedAttribute{
 						Computed:            true,
 						MarkdownDescription: "OAuth refresh config (mcp_oauth only).",
@@ -135,11 +152,19 @@ func (d *vaultCredentialDataSource) Read(ctx context.Context, req datasource.Rea
 		refreshObj = rObj
 	}
 
+	networkingObj, nDiags := networkingFromAPI(cred.Auth.Networking)
+	resp.Diagnostics.Append(nDiags...)
+	injectionObj, iDiags := injectionLocationFromAPI(cred.Auth.InjectionLocation)
+	resp.Diagnostics.Append(iDiags...)
+
 	authObj, aDiags := types.ObjectValue(credentialDSAuthAttrTypes(), map[string]attr.Value{
-		"type":           types.StringValue(cred.Auth.Type),
-		"mcp_server_url": types.StringValue(cred.Auth.McpServerURL),
-		"expires_at":     expiresAt,
-		"refresh":        refreshObj,
+		"type":               types.StringValue(cred.Auth.Type),
+		"mcp_server_url":     stringOrNull(cred.Auth.McpServerURL),
+		"expires_at":         expiresAt,
+		"refresh":            refreshObj,
+		"secret_name":        stringOrNull(cred.Auth.SecretName),
+		"networking":         networkingObj,
+		"injection_location": injectionObj,
 	})
 	resp.Diagnostics.Append(aDiags...)
 	state.Auth = authObj
@@ -159,10 +184,13 @@ type vaultCredentialDataSourceModel struct {
 
 func credentialDSAuthAttrTypes() map[string]attr.Type {
 	return map[string]attr.Type{
-		"type":           types.StringType,
-		"mcp_server_url": types.StringType,
-		"expires_at":     types.StringType,
-		"refresh":        types.ObjectType{AttrTypes: credentialDSRefreshAttrTypes()},
+		"type":               types.StringType,
+		"mcp_server_url":     types.StringType,
+		"expires_at":         types.StringType,
+		"refresh":            types.ObjectType{AttrTypes: credentialDSRefreshAttrTypes()},
+		"secret_name":        types.StringType,
+		"networking":         types.ObjectType{AttrTypes: credentialNetworkingAttrTypes()},
+		"injection_location": types.ObjectType{AttrTypes: credentialInjectionLocationAttrTypes()},
 	}
 }
 

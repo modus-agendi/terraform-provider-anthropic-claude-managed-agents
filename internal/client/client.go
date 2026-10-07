@@ -46,22 +46,28 @@ func withHeader(name, value string) headerOverride {
 type Client struct {
 	httpClient *retryablehttp.Client
 	apiKey     string
+	authToken  string
 	baseURL    string
 	userAgent  string
 }
 
 // Config configures a Client.
 type Config struct {
-	APIKey     string
+	APIKey     string // sent as x-api-key
+	AuthToken  string // OAuth or federated access token, sent as Authorization: Bearer
 	BaseURL    string // optional; defaults to https://api.anthropic.com
 	UserAgent  string // optional
 	MaxRetries int    // optional; defaults to 3
 }
 
-// New returns a configured Client. APIKey must be non-empty.
+// New returns a configured Client. Exactly one of APIKey or AuthToken must be
+// set.
 func New(cfg Config) (*Client, error) {
-	if cfg.APIKey == "" {
-		return nil, fmt.Errorf("client: APIKey is required")
+	if cfg.APIKey == "" && cfg.AuthToken == "" {
+		return nil, fmt.Errorf("client: APIKey or AuthToken is required")
+	}
+	if cfg.APIKey != "" && cfg.AuthToken != "" {
+		return nil, fmt.Errorf("client: set only one of APIKey or AuthToken")
 	}
 
 	base := cfg.BaseURL
@@ -91,6 +97,7 @@ func New(cfg Config) (*Client, error) {
 	return &Client{
 		httpClient: rc,
 		apiKey:     cfg.APIKey,
+		authToken:  cfg.AuthToken,
 		baseURL:    base,
 		userAgent:  cfg.UserAgent,
 	}, nil
@@ -156,7 +163,11 @@ func (c *Client) doRaw(ctx context.Context, method, path string, bodyBytes []byt
 	if err != nil {
 		return fmt.Errorf("client: build request: %w", err)
 	}
-	req.Header.Set("x-api-key", c.apiKey)
+	if c.authToken != "" {
+		req.Header.Set("Authorization", "Bearer "+c.authToken)
+	} else {
+		req.Header.Set("x-api-key", c.apiKey)
+	}
 	req.Header.Set("anthropic-version", apiVersionHeader)
 	req.Header.Set("anthropic-beta", managedAgentsBeta)
 	req.Header.Set("Content-Type", contentType)

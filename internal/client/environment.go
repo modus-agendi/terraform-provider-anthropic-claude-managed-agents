@@ -38,6 +38,27 @@ func (c *Client) GetEnvironment(ctx context.Context, id string) (*Environment, e
 	return &out, nil
 }
 
+// UpdateEnvironment issues POST /v1/environments/{id}. Environments are not
+// versioned: the update replaces the live configuration and new sessions
+// pick it up; sessions already running keep the sandbox they started with.
+func (c *Client) UpdateEnvironment(ctx context.Context, id string, req EnvironmentUpdateRequest) (*Environment, error) {
+	if id == "" {
+		return nil, fmt.Errorf("client.UpdateEnvironment: id is required")
+	}
+	if req.Name == nil && req.Config == nil {
+		return nil, fmt.Errorf("client.UpdateEnvironment: nothing to update")
+	}
+	if req.Config != nil && req.Config.Networking.Type == "" {
+		return nil, fmt.Errorf("client.UpdateEnvironment: config.networking.type is required")
+	}
+	var out Environment
+	path := "/v1/environments/" + url.PathEscape(id)
+	if err := c.do(ctx, http.MethodPost, path, req, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // ArchiveEnvironment issues POST /v1/environments/{id}/archive.
 //
 // Archive succeeds even when active sessions reference the environment;

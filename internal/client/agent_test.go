@@ -17,7 +17,7 @@ func TestCreateAgent_HappyPath(t *testing.T) {
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			t.Fatalf("decode: %v", err)
 		}
-		if req.Name != "Test" || req.Model != "claude-opus-4-7" {
+		if req.Name != "Test" || req.Model.ID != "claude-opus-4-7" {
 			t.Errorf("body = %+v", req)
 		}
 		w.WriteHeader(http.StatusOK)
@@ -34,7 +34,7 @@ func TestCreateAgent_HappyPath(t *testing.T) {
 	defer srv.Close()
 
 	c := newTestClient(t, srv)
-	agent, err := c.CreateAgent(context.Background(), AgentCreateRequest{Name: "Test", Model: "claude-opus-4-7"})
+	agent, err := c.CreateAgent(context.Background(), AgentCreateRequest{Name: "Test", Model: ModelSpec{ID: "claude-opus-4-7"}})
 	if err != nil {
 		t.Fatalf("CreateAgent: %v", err)
 	}
@@ -54,7 +54,7 @@ func TestCreateAgent_ValidatesRequired(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	if _, err := c.CreateAgent(context.Background(), AgentCreateRequest{Model: "x"}); err == nil {
+	if _, err := c.CreateAgent(context.Background(), AgentCreateRequest{Model: ModelSpec{ID: "x"}}); err == nil {
 		t.Error("expected error for empty Name")
 	}
 	if _, err := c.CreateAgent(context.Background(), AgentCreateRequest{Name: "x"}); err == nil {
@@ -272,5 +272,35 @@ func TestArchiveAgent_RequiresID(t *testing.T) {
 	}
 	if err := c.ArchiveAgent(context.Background(), ""); err == nil {
 		t.Error("expected error for empty id")
+	}
+}
+
+func TestModelSpec_JSON(t *testing.T) {
+	cases := []struct {
+		spec ModelSpec
+		want string
+	}{
+		{ModelSpec{ID: "claude-opus-4-7"}, `"claude-opus-4-7"`},
+		{ModelSpec{ID: "claude-opus-4-7", Effort: "medium"}, `{"id":"claude-opus-4-7","effort":{"type":"medium"}}`},
+		{ModelSpec{ID: "claude-opus-4-7", Speed: "fast"}, `{"id":"claude-opus-4-7","speed":"fast"}`},
+	}
+	for _, tc := range cases {
+		got, err := json.Marshal(tc.spec)
+		if err != nil {
+			t.Fatalf("marshal %+v: %v", tc.spec, err)
+		}
+		if string(got) != tc.want {
+			t.Errorf("marshal %+v = %s, want %s", tc.spec, got, tc.want)
+		}
+		var back ModelSpec
+		if err := json.Unmarshal(got, &back); err != nil {
+			t.Fatalf("unmarshal %s: %v", got, err)
+		}
+		if back != tc.spec {
+			t.Errorf("round-trip %s = %+v, want %+v", got, back, tc.spec)
+		}
+	}
+	if err := json.Unmarshal([]byte(`42`), new(ModelSpec)); err == nil {
+		t.Error("expected error for numeric model")
 	}
 }

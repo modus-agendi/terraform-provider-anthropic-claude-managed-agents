@@ -6,25 +6,10 @@ import (
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
-	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/modus-agendi/terraform-provider-anthropic-claude-managed-agents/internal/client"
 )
-
-// TestEnvironmentResource_Update_AlwaysErrors locks in the contract that the
-// Update method returns an error: every attribute is RequiresReplace, so
-// Update should never be reachable through normal Terraform flow. If anyone
-// ever removes the RequiresReplace modifiers without wiring a real update
-// path, this test will fail and force a deliberate decision.
-func TestEnvironmentResource_Update_AlwaysErrors(t *testing.T) {
-	r := &environmentResource{}
-	var resp resource.UpdateResponse
-	r.Update(context.Background(), resource.UpdateRequest{}, &resp)
-	if !resp.Diagnostics.HasError() {
-		t.Fatal("Update should always produce an error diagnostic")
-	}
-}
 
 func TestEnvironmentFromAPI_Archived(t *testing.T) {
 	now := time.Date(2026, 5, 13, 12, 0, 0, 0, time.UTC)

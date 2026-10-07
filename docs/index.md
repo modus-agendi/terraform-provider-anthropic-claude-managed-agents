@@ -43,11 +43,17 @@ from the standard Anthropic Messages API; this provider does not manage
 
 ## Authentication
 
-The provider authenticates with an Anthropic API key. Provide it through the
-`ANTHROPIC_API_KEY` environment variable (preferred — keeps the key out of
-configuration and state) or the `api_key` provider attribute.
+The provider authenticates with either an Anthropic OAuth or federated access
+token, sent as `Authorization: Bearer`, or an Anthropic API key, sent as
+`x-api-key`. Provide one through the `ANTHROPIC_AUTH_TOKEN` or
+`ANTHROPIC_API_KEY` environment variable (preferred — keeps the credential out
+of configuration and state), or the `auth_token` or `api_key` provider
+attribute. Set only one attribute; if neither is set and both variables are,
+`ANTHROPIC_AUTH_TOKEN` wins.
 
 ```shell
+export ANTHROPIC_AUTH_TOKEN="$(ant auth print-credentials --access-token)"
+# or
 export ANTHROPIC_API_KEY="sk-ant-..."
 ```
 
@@ -85,6 +91,7 @@ provider "claude-managed-agents" {
 ### Optional
 
 - `api_key` (String, Sensitive) Anthropic API key. Defaults to the `ANTHROPIC_API_KEY` environment variable. Marked sensitive: not shown in plan output.
+- `auth_token` (String, Sensitive) Anthropic OAuth or federated access token, sent as `Authorization: Bearer`. Defaults to the `ANTHROPIC_AUTH_TOKEN` environment variable. Set this or `api_key`, not both. Marked sensitive: not shown in plan output.
 - `base_url` (String) API base URL. Defaults to `https://api.anthropic.com`. Override for self-hosted gateways or to point at a local test server.
 - `max_retries` (Number) Maximum number of retries for transient failures (5xx, 429). Defaults to 3.
 

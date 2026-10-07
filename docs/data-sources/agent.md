@@ -60,6 +60,8 @@ output "agent_version" {
 - `mcp_servers` (Attributes List) MCP servers configured on the agent. (see [below for nested schema](#nestedatt--mcp_servers))
 - `metadata` (Map of String) Metadata map.
 - `model` (String) Model identifier.
+- `model_effort` (String) Server-reported reasoning effort (`model.effort.type`), or null.
+- `model_speed` (String) Server-reported model speed tier (`model.speed`), or null.
 - `multiagent` (Attributes) Multi-agent coordinator config, if any. (see [below for nested schema](#nestedatt--multiagent))
 - `name` (String) Agent name.
 - `skills` (Attributes List) Skills configured on the agent. (see [below for nested schema](#nestedatt--skills))

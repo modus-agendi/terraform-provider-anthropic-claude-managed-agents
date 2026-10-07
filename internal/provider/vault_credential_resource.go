@@ -9,6 +9,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/objectplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
@@ -18,9 +19,16 @@ import (
 )
 
 var (
-	_ resource.Resource                = (*vaultCredentialResource)(nil)
-	_ resource.ResourceWithConfigure   = (*vaultCredentialResource)(nil)
-	_ resource.ResourceWithImportState = (*vaultCredentialResource)(nil)
+	_ resource.Resource                   = (*vaultCredentialResource)(nil)
+	_ resource.ResourceWithConfigure      = (*vaultCredentialResource)(nil)
+	_ resource.ResourceWithImportState    = (*vaultCredentialResource)(nil)
+	_ resource.ResourceWithValidateConfig = (*vaultCredentialResource)(nil)
+)
+
+const (
+	credTypeStaticBearer = "static_bearer"
+	credTypeMCPOAuth     = "mcp_oauth" //nolint:gosec // G101: auth type discriminator, not a credential
+	credTypeEnvVar       = "environment_variable"
 )
 
 type vaultCredentialResource struct {
@@ -55,18 +63,68 @@ func (r *vaultCredentialResource) Schema(_ context.Context, _ resource.SchemaReq
 			},
 			"auth": schema.SingleNestedAttribute{
 				Required:            true,
-				MarkdownDescription: "Auth payload. Discriminated on `auth.type`: `static_bearer` carries a single bearer token; `mcp_oauth` carries an access token + optional refresh block.",
+				MarkdownDescription: "Auth payload. Discriminated on `auth.type`: `static_bearer` carries a single bearer token; `mcp_oauth` carries an access token + optional refresh block; `environment_variable` carries a named secret that is substituted into outbound requests at egress.",
 				PlanModifiers:       []planmodifier.Object{objectplanmodifier.UseStateForUnknown()},
 				Attributes: map[string]schema.Attribute{
 					"type": schema.StringAttribute{
 						Required:            true,
-						MarkdownDescription: "Either `static_bearer` or `mcp_oauth`. Immutable; changing forces replacement.",
+						MarkdownDescription: "One of `static_bearer`, `mcp_oauth`, or `environment_variable`. Immutable; changing forces replacement.",
 						PlanModifiers:       []planmodifier.String{stringplanmodifier.RequiresReplace()},
 					},
 					"mcp_server_url": schema.StringAttribute{
-						Required:            true,
-						MarkdownDescription: "MCP server URL this credential is bound to. Immutable; changing forces replacement. The API rejects duplicate URLs within the same vault.",
+						Optional:            true,
+						MarkdownDescription: "MCP server URL this credential is bound to. Required for `static_bearer` and `mcp_oauth`; must not be set for `environment_variable`. Immutable; changing forces replacement. The API rejects duplicate URLs within the same vault.",
 						PlanModifiers:       []planmodifier.String{stringplanmodifier.RequiresReplace()},
+					},
+					"secret_name": schema.StringAttribute{
+						Optional:            true,
+						MarkdownDescription: "Name of the environment variable the sandbox sees (holding an opaque placeholder). Required for `environment_variable`. Immutable; changing forces replacement.",
+						PlanModifiers:       []planmodifier.String{stringplanmodifier.RequiresReplace()},
+					},
+					"secret_value": schema.StringAttribute{
+						Optional:            true,
+						Sensitive:           true,
+						WriteOnly:           true,
+						MarkdownDescription: "Secret value for `environment_variable` auth, substituted for the placeholder at egress. Write-only: never persisted to state. Pair with `secret_value_wo_version` to trigger rotation.",
+					},
+					"secret_value_wo_version": schema.Int64Attribute{
+						Optional:            true,
+						MarkdownDescription: "Rotation counter for `secret_value`. Increment it to re-send the secret from your config.",
+					},
+					"networking": schema.SingleNestedAttribute{
+						Optional:            true,
+						MarkdownDescription: "Outbound hosts the secret is substituted on. Required for `environment_variable`. Mutable; an update replaces the whole object.",
+						Attributes: map[string]schema.Attribute{
+							"type": schema.StringAttribute{
+								Required:            true,
+								MarkdownDescription: "`limited` (substitute only on `allowed_hosts`) or `unrestricted` (any host the session's environment network policy allows).",
+							},
+							"allowed_hosts": schema.ListAttribute{
+								Optional:            true,
+								ElementType:         types.StringType,
+								MarkdownDescription: "Hosts the secret is substituted on. Required when `type = \"limited\"`; must not be set for `unrestricted`. Each entry is a bare hostname, an IPv4 address, or a `*.`-prefixed wildcard. At most 16 entries.",
+							},
+						},
+					},
+					"injection_location": schema.SingleNestedAttribute{
+						Optional:            true,
+						Computed:            true,
+						MarkdownDescription: "Where in the outbound request the placeholder is substituted. Only for `environment_variable`; when omitted the API default applies and is recorded in state. Mutable.",
+						PlanModifiers:       []planmodifier.Object{injectionLocationPlanModifier{}},
+						Attributes: map[string]schema.Attribute{
+							"header": schema.BoolAttribute{
+								Optional:            true,
+								Computed:            true,
+								MarkdownDescription: "Substitute when the placeholder appears in a request header value.",
+								PlanModifiers:       []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()},
+							},
+							"body": schema.BoolAttribute{
+								Optional:            true,
+								Computed:            true,
+								MarkdownDescription: "Substitute when the placeholder appears in the request body.",
+								PlanModifiers:       []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()},
+							},
+						},
 					},
 					"token": schema.StringAttribute{
 						Optional:            true,
@@ -302,6 +360,25 @@ func credentialAuthAttrTypes() map[string]attr.Type {
 		"access_token_wo_version": types.Int64Type,
 		"expires_at":              types.StringType,
 		"refresh":                 types.ObjectType{AttrTypes: credentialRefreshAttrTypes()},
+		"secret_name":             types.StringType,
+		"secret_value":            types.StringType,
+		"secret_value_wo_version": types.Int64Type,
+		"networking":              types.ObjectType{AttrTypes: credentialNetworkingAttrTypes()},
+		"injection_location":      types.ObjectType{AttrTypes: credentialInjectionLocationAttrTypes()},
+	}
+}
+
+func credentialNetworkingAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"type":          types.StringType,
+		"allowed_hosts": types.ListType{ElemType: types.StringType},
+	}
+}
+
+func credentialInjectionLocationAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"header": types.BoolType,
+		"body":   types.BoolType,
 	}
 }
 
@@ -344,11 +421,11 @@ func splitImportID(id string, n int) []string {
 	return parts
 }
 
-const vaultCredentialResourceMarkdown = "Manages a single credential within a vault. Bind a token or OAuth client to an MCP server URL so that future sessions referencing the parent vault can authenticate against that server.\n\n" +
+const vaultCredentialResourceMarkdown = "Manages a single credential within a vault. Bind a token or OAuth client to an MCP server URL so that future sessions referencing the parent vault can authenticate against that server, or store an `environment_variable` secret that sessions see only as an opaque placeholder and that Anthropic substitutes into outbound requests at egress.\n\n" +
 	"### Secrets are write-only\n\n" +
-	"`token`, `access_token`, `refresh_token`, and `client_secret` are TF 1.11 write-only attributes — they are sent to the API but never stored in state. To rotate a secret, increment the matching `*_wo_version` field; the provider re-sends the secret from your config on the next plan.\n\n" +
+	"`token`, `access_token`, `refresh_token`, `client_secret`, and `secret_value` are TF 1.11 write-only attributes — they are sent to the API but never stored in state. To rotate a secret, increment the matching `*_wo_version` field; the provider re-sends the secret from your config on the next plan.\n\n" +
 	"### Immutability\n\n" +
-	"`auth.type`, `auth.mcp_server_url`, `auth.refresh.token_endpoint`, and `auth.refresh.client_id` are immutable. Changing any of them forces Terraform to destroy and re-create the credential. The API rejects creating two active credentials with the same `mcp_server_url` in the same vault.\n\n" +
+	"`auth.type`, `auth.mcp_server_url`, `auth.secret_name`, `auth.refresh.token_endpoint`, and `auth.refresh.client_id` are immutable. For `environment_variable`, `auth.networking` and `auth.injection_location` are updated in place. Changing any of them forces Terraform to destroy and re-create the credential. The API rejects creating two active credentials with the same `mcp_server_url` in the same vault.\n\n" +
 	"### Lifecycle on destroy\n\n" +
 	"`terraform destroy` archives the credential (`POST /archive`), which purges the secret payload while keeping the audit record visible. Use the parent `claude-managed-agents_vault` with `delete_on_destroy = true` to hard-delete a vault and its credentials together."
 
@@ -387,6 +464,19 @@ func credentialAuthUpdatePayload(ctx context.Context, planAuth, stateAuth, confi
 		out["expires_at"] = planVals.expiresAt
 	}
 
+	if planVals.typ == credTypeEnvVar {
+		if !planVals.secretValueWoVersion.Equal(stateVals.secretValueWoVersion) {
+			out["secret_value"] = configVals.secretValue
+		}
+		// networking is a full replacement on the API side.
+		if !planVals.networking.IsNull() && !planVals.networking.Equal(stateVals.networking) {
+			out["networking"] = networkingToAPI(planVals)
+		}
+		if il := injectionLocationToAPI(planVals); il != nil && !planVals.injectionLocation.Equal(stateVals.injectionLocation) {
+			out["injection_location"] = il
+		}
+	}
+
 	if !planVals.refresh.IsNull() {
 		refresh := map[string]any{}
 		if !planVals.refreshTokenWoVersion.Equal(stateVals.refreshTokenWoVersion) {
@@ -422,11 +512,22 @@ func credentialAuthBuild(ctx context.Context, planAuth, configAuth types.Object,
 		return nil, diags
 	}
 
-	out := map[string]any{
-		"type":           planVals.typ,
-		"mcp_server_url": planVals.mcpServerURL,
+	out := map[string]any{"type": planVals.typ}
+	if planVals.typ != credTypeEnvVar {
+		out["mcp_server_url"] = planVals.mcpServerURL
 	}
 	switch planVals.typ {
+	case credTypeEnvVar:
+		out["secret_name"] = planVals.secretName
+		if configVals.secretValue != "" {
+			out["secret_value"] = configVals.secretValue
+		}
+		if !planVals.networking.IsNull() {
+			out["networking"] = networkingToAPI(planVals)
+		}
+		if il := injectionLocationToAPI(planVals); il != nil {
+			out["injection_location"] = il
+		}
 	case "static_bearer":
 		if configVals.tokenSecret != "" {
 			out["token"] = configVals.tokenSecret
@@ -479,6 +580,16 @@ type authDecoded struct {
 	endpointAuthType      string
 	clientSecret          string
 	clientSecretWoVersion types.Int64
+	secretName            string
+	secretValue           string
+	secretValueWoVersion  types.Int64
+	networking            types.Object
+	networkingType        string
+	allowedHosts          []string
+	allowedHostsSet       bool
+	injectionLocation     types.Object
+	injectHeader          types.Bool
+	injectBody            types.Bool
 }
 
 func credentialAuthDecode(ctx context.Context, obj types.Object) (authDecoded, diag.Diagnostics) {
@@ -497,6 +608,11 @@ func credentialAuthDecode(ctx context.Context, obj types.Object) (authDecoded, d
 		AccessTokenWoVersion types.Int64  `tfsdk:"access_token_wo_version"`
 		ExpiresAt            types.String `tfsdk:"expires_at"`
 		Refresh              types.Object `tfsdk:"refresh"`
+		SecretName           types.String `tfsdk:"secret_name"`
+		SecretValue          types.String `tfsdk:"secret_value"`
+		SecretValueWoVersion types.Int64  `tfsdk:"secret_value_wo_version"`
+		Networking           types.Object `tfsdk:"networking"`
+		InjectionLocation    types.Object `tfsdk:"injection_location"`
 	}
 	diags.Append(obj.As(ctx, &raw, basicObjectAsOpts())...)
 	if diags.HasError() {
@@ -511,6 +627,41 @@ func credentialAuthDecode(ctx context.Context, obj types.Object) (authDecoded, d
 	out.accessTokenWoVersion = raw.AccessTokenWoVersion
 	out.expiresAt = raw.ExpiresAt.ValueString()
 	out.refresh = raw.Refresh
+	out.secretName = raw.SecretName.ValueString()
+	out.secretValue = raw.SecretValue.ValueString()
+	out.secretValueWoVersion = raw.SecretValueWoVersion
+	out.networking = raw.Networking
+	out.injectionLocation = raw.InjectionLocation
+	out.injectHeader = types.BoolNull()
+	out.injectBody = types.BoolNull()
+
+	if !raw.Networking.IsNull() && !raw.Networking.IsUnknown() {
+		var n struct {
+			Type         types.String `tfsdk:"type"`
+			AllowedHosts types.List   `tfsdk:"allowed_hosts"`
+		}
+		diags.Append(raw.Networking.As(ctx, &n, basicObjectAsOpts())...)
+		if diags.HasError() {
+			return out, diags
+		}
+		out.networkingType = n.Type.ValueString()
+		if !n.AllowedHosts.IsNull() && !n.AllowedHosts.IsUnknown() {
+			out.allowedHostsSet = true
+			diags.Append(n.AllowedHosts.ElementsAs(ctx, &out.allowedHosts, false)...)
+		}
+	}
+	if !raw.InjectionLocation.IsNull() && !raw.InjectionLocation.IsUnknown() {
+		var il struct {
+			Header types.Bool `tfsdk:"header"`
+			Body   types.Bool `tfsdk:"body"`
+		}
+		diags.Append(raw.InjectionLocation.As(ctx, &il, basicObjectAsOpts())...)
+		if diags.HasError() {
+			return out, diags
+		}
+		out.injectHeader = il.Header
+		out.injectBody = il.Body
+	}
 
 	if !raw.Refresh.IsNull() && !raw.Refresh.IsUnknown() {
 		var refresh struct {
@@ -606,15 +757,25 @@ func vaultCredentialFromAPI(ctx context.Context, c *client.VaultCredential, prio
 		refreshObj = obj
 	}
 
+	networkingObj, nDiags := networkingFromAPI(c.Auth.Networking)
+	diags.Append(nDiags...)
+	injectionObj, iDiags := injectionLocationFromAPI(c.Auth.InjectionLocation)
+	diags.Append(iDiags...)
+
 	authObj, aDiags := types.ObjectValue(credentialAuthAttrTypes(), map[string]attr.Value{
 		"type":                    types.StringValue(c.Auth.Type),
-		"mcp_server_url":          types.StringValue(c.Auth.McpServerURL),
+		"mcp_server_url":          stringOrNull(c.Auth.McpServerURL),
 		"token":                   types.StringNull(),
 		"token_wo_version":        prior.tokenWoVersion,
 		"access_token":            types.StringNull(),
 		"access_token_wo_version": prior.accessTokenWoVersion,
 		"expires_at":              expiresAt,
 		"refresh":                 refreshObj,
+		"secret_name":             stringOrNull(c.Auth.SecretName),
+		"secret_value":            types.StringNull(),
+		"secret_value_wo_version": prior.secretValueWoVersion,
+		"networking":              networkingObj,
+		"injection_location":      injectionObj,
 	})
 	diags.Append(aDiags...)
 	m.Auth = authObj

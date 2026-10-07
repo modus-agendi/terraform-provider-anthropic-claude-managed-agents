@@ -67,9 +67,30 @@ output "credential_auth_type" {
 Read-Only:
 
 - `expires_at` (String) Access token expiry (mcp_oauth only).
-- `mcp_server_url` (String) MCP server URL this credential is bound to.
+- `injection_location` (Attributes) Where the placeholder is substituted in outbound requests (environment_variable only). (see [below for nested schema](#nestedatt--auth--injection_location))
+- `mcp_server_url` (String) MCP server URL this credential is bound to (null for `environment_variable`).
+- `networking` (Attributes) Outbound hosts the secret is substituted on (environment_variable only). (see [below for nested schema](#nestedatt--auth--networking))
 - `refresh` (Attributes) OAuth refresh config (mcp_oauth only). (see [below for nested schema](#nestedatt--auth--refresh))
-- `type` (String) `static_bearer` or `mcp_oauth`.
+- `secret_name` (String) Environment variable name (environment_variable only).
+- `type` (String) `static_bearer`, `mcp_oauth`, or `environment_variable`.
+
+<a id="nestedatt--auth--injection_location"></a>
+### Nested Schema for `auth.injection_location`
+
+Read-Only:
+
+- `body` (Boolean) Substituted in the request body.
+- `header` (Boolean) Substituted in request header values.
+
+
+<a id="nestedatt--auth--networking"></a>
+### Nested Schema for `auth.networking`
+
+Read-Only:
+
+- `allowed_hosts` (List of String) Hosts the secret is substituted on (`limited` only).
+- `type` (String) `limited` or `unrestricted`.
+
 
 <a id="nestedatt--auth--refresh"></a>
 ### Nested Schema for `auth.refresh`

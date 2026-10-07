@@ -23,7 +23,34 @@ func newTestClient(t *testing.T, srv *httptest.Server) *Client {
 
 func TestNew_RequiresAPIKey(t *testing.T) {
 	if _, err := New(Config{}); err == nil {
-		t.Fatal("expected error when APIKey is empty")
+		t.Fatal("expected error when APIKey and AuthToken are empty")
+	}
+}
+
+func TestNew_RejectsBothAPIKeyAndAuthToken(t *testing.T) {
+	if _, err := New(Config{APIKey: "sk-test", AuthToken: "tok"}); err == nil {
+		t.Fatal("expected error when both APIKey and AuthToken are set")
+	}
+}
+
+func TestDo_AuthTokenSendsBearerNotAPIKey(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.Header.Get("Authorization"); got != "Bearer tok-test" {
+			t.Errorf("Authorization = %q", got)
+		}
+		if got := r.Header.Get("x-api-key"); got != "" {
+			t.Errorf("x-api-key = %q, want empty", got)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{}`))
+	}))
+	defer srv.Close()
+	c, err := New(Config{AuthToken: "tok-test", BaseURL: srv.URL})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	if err := c.do(context.Background(), http.MethodGet, "/v1/ping", nil, nil); err != nil {
+		t.Fatalf("do: %v", err)
 	}
 }
 

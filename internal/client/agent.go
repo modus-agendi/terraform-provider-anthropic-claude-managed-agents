@@ -12,7 +12,7 @@ func (c *Client) CreateAgent(ctx context.Context, req AgentCreateRequest) (*Agen
 	if req.Name == "" {
 		return nil, fmt.Errorf("client.CreateAgent: name is required")
 	}
-	if req.Model == "" {
+	if req.Model.ID == "" {
 		return nil, fmt.Errorf("client.CreateAgent: model is required")
 	}
 	var out Agent

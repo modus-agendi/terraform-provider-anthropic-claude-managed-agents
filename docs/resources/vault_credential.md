@@ -3,26 +3,26 @@
 page_title: "claude-managed-agents_vault_credential Resource - Claude Managed Agents"
 subcategory: ""
 description: |-
-  Manages a single credential within a vault. Bind a token or OAuth client to an MCP server URL so that future sessions referencing the parent vault can authenticate against that server.
+  Manages a single credential within a vault. Bind a token or OAuth client to an MCP server URL so that future sessions referencing the parent vault can authenticate against that server, or store an environment_variable secret that sessions see only as an opaque placeholder and that Anthropic substitutes into outbound requests at egress.
   Secrets are write-only
-  token, access_token, refresh_token, and client_secret are TF 1.11 write-only attributes — they are sent to the API but never stored in state. To rotate a secret, increment the matching *_wo_version field; the provider re-sends the secret from your config on the next plan.
+  token, access_token, refresh_token, client_secret, and secret_value are TF 1.11 write-only attributes — they are sent to the API but never stored in state. To rotate a secret, increment the matching *_wo_version field; the provider re-sends the secret from your config on the next plan.
   Immutability
-  auth.type, auth.mcp_server_url, auth.refresh.token_endpoint, and auth.refresh.client_id are immutable. Changing any of them forces Terraform to destroy and re-create the credential. The API rejects creating two active credentials with the same mcp_server_url in the same vault.
+  auth.type, auth.mcp_server_url, auth.secret_name, auth.refresh.token_endpoint, and auth.refresh.client_id are immutable. For environment_variable, auth.networking and auth.injection_location are updated in place. Changing any of them forces Terraform to destroy and re-create the credential. The API rejects creating two active credentials with the same mcp_server_url in the same vault.
   Lifecycle on destroy
   terraform destroy archives the credential (POST /archive), which purges the secret payload while keeping the audit record visible. Use the parent claude-managed-agents_vault with delete_on_destroy = true to hard-delete a vault and its credentials together.
 ---
 
 # claude-managed-agents_vault_credential (Resource)
 
-Manages a single credential within a vault. Bind a token or OAuth client to an MCP server URL so that future sessions referencing the parent vault can authenticate against that server.
+Manages a single credential within a vault. Bind a token or OAuth client to an MCP server URL so that future sessions referencing the parent vault can authenticate against that server, or store an `environment_variable` secret that sessions see only as an opaque placeholder and that Anthropic substitutes into outbound requests at egress.
 
 ### Secrets are write-only
 
-`token`, `access_token`, `refresh_token`, and `client_secret` are TF 1.11 write-only attributes — they are sent to the API but never stored in state. To rotate a secret, increment the matching `*_wo_version` field; the provider re-sends the secret from your config on the next plan.
+`token`, `access_token`, `refresh_token`, `client_secret`, and `secret_value` are TF 1.11 write-only attributes — they are sent to the API but never stored in state. To rotate a secret, increment the matching `*_wo_version` field; the provider re-sends the secret from your config on the next plan.
 
 ### Immutability
 
-`auth.type`, `auth.mcp_server_url`, `auth.refresh.token_endpoint`, and `auth.refresh.client_id` are immutable. Changing any of them forces Terraform to destroy and re-create the credential. The API rejects creating two active credentials with the same `mcp_server_url` in the same vault.
+`auth.type`, `auth.mcp_server_url`, `auth.secret_name`, `auth.refresh.token_endpoint`, and `auth.refresh.client_id` are immutable. For `environment_variable`, `auth.networking` and `auth.injection_location` are updated in place. Changing any of them forces Terraform to destroy and re-create the credential. The API rejects creating two active credentials with the same `mcp_server_url` in the same vault.
 
 ### Lifecycle on destroy
 
@@ -96,6 +96,34 @@ resource "claude-managed-agents_vault_credential" "slack" {
   }
 }
 
+# Environment-variable credential. The sandbox sees DATADOG_API_KEY as an
+# opaque placeholder; Anthropic substitutes the real value at egress, only
+# on requests to the allowed hosts and only where injection_location
+# permits. secret_name is immutable; networking and injection_location are
+# updated in place. To rotate, change var.datadog_api_key AND increment
+# secret_value_wo_version.
+resource "claude-managed-agents_vault_credential" "datadog" {
+  vault_id     = claude-managed-agents_vault.alice.id
+  display_name = "Datadog API key"
+
+  auth = {
+    type                    = "environment_variable"
+    secret_name             = "DATADOG_API_KEY"
+    secret_value            = var.datadog_api_key
+    secret_value_wo_version = 1
+
+    networking = {
+      type          = "limited"
+      allowed_hosts = ["api.datadoghq.com"]
+    }
+
+    injection_location = {
+      header = true
+      body   = false
+    }
+  }
+}
+
 variable "linear_token" {
   type        = string
   sensitive   = true
@@ -119,6 +147,12 @@ variable "slack_client_secret" {
   sensitive   = true
   description = "Slack OAuth client secret."
 }
+
+variable "datadog_api_key" {
+  type        = string
+  sensitive   = true
+  description = "Datadog API key."
+}
 ```
 
 <!-- schema generated by tfplugindocs -->
@@ -126,7 +160,7 @@ variable "slack_client_secret" {
 
 ### Required
 
-- `auth` (Attributes) Auth payload. Discriminated on `auth.type`: `static_bearer` carries a single bearer token; `mcp_oauth` carries an access token + optional refresh block. (see [below for nested schema](#nestedatt--auth))
+- `auth` (Attributes) Auth payload. Discriminated on `auth.type`: `static_bearer` carries a single bearer token; `mcp_oauth` carries an access token + optional refresh block; `environment_variable` carries a named secret that is substituted into outbound requests at egress. (see [below for nested schema](#nestedatt--auth))
 - `display_name` (String) Human-readable credential name. Mutable.
 - `vault_id` (String) ID of the parent vault. Immutable; changing forces replacement.
 
@@ -142,17 +176,43 @@ variable "slack_client_secret" {
 
 Required:
 
-- `mcp_server_url` (String) MCP server URL this credential is bound to. Immutable; changing forces replacement. The API rejects duplicate URLs within the same vault.
-- `type` (String) Either `static_bearer` or `mcp_oauth`. Immutable; changing forces replacement.
+- `type` (String) One of `static_bearer`, `mcp_oauth`, or `environment_variable`. Immutable; changing forces replacement.
 
 Optional:
 
 - `access_token` (String, Sensitive, [Write-only](https://developer.hashicorp.com/terraform/language/resources/ephemeral#write-only-arguments)) Access token for `mcp_oauth` auth. Write-only. Pair with `access_token_wo_version` for rotation.
 - `access_token_wo_version` (Number) Rotation counter for `access_token`.
 - `expires_at` (String) RFC 3339 timestamp at which the access token expires. Only meaningful for `mcp_oauth`.
+- `injection_location` (Attributes) Where in the outbound request the placeholder is substituted. Only for `environment_variable`; when omitted the API default applies and is recorded in state. Mutable. (see [below for nested schema](#nestedatt--auth--injection_location))
+- `mcp_server_url` (String) MCP server URL this credential is bound to. Required for `static_bearer` and `mcp_oauth`; must not be set for `environment_variable`. Immutable; changing forces replacement. The API rejects duplicate URLs within the same vault.
+- `networking` (Attributes) Outbound hosts the secret is substituted on. Required for `environment_variable`. Mutable; an update replaces the whole object. (see [below for nested schema](#nestedatt--auth--networking))
 - `refresh` (Attributes) OAuth refresh configuration. Set when you want Anthropic to refresh the access token on your behalf. (see [below for nested schema](#nestedatt--auth--refresh))
+- `secret_name` (String) Name of the environment variable the sandbox sees (holding an opaque placeholder). Required for `environment_variable`. Immutable; changing forces replacement.
+- `secret_value` (String, Sensitive, [Write-only](https://developer.hashicorp.com/terraform/language/resources/ephemeral#write-only-arguments)) Secret value for `environment_variable` auth, substituted for the placeholder at egress. Write-only: never persisted to state. Pair with `secret_value_wo_version` to trigger rotation.
+- `secret_value_wo_version` (Number) Rotation counter for `secret_value`. Increment it to re-send the secret from your config.
 - `token` (String, Sensitive, [Write-only](https://developer.hashicorp.com/terraform/language/resources/ephemeral#write-only-arguments)) Bearer token for `static_bearer` auth. Write-only: never persisted to state. Pair with `token_wo_version` to trigger rotation.
 - `token_wo_version` (Number) Increment this integer to signal that the corresponding write-only secret has been rotated and should be re-sent to the API.
+
+<a id="nestedatt--auth--injection_location"></a>
+### Nested Schema for `auth.injection_location`
+
+Optional:
+
+- `body` (Boolean) Substitute when the placeholder appears in the request body.
+- `header` (Boolean) Substitute when the placeholder appears in a request header value.
+
+
+<a id="nestedatt--auth--networking"></a>
+### Nested Schema for `auth.networking`
+
+Required:
+
+- `type` (String) `limited` (substitute only on `allowed_hosts`) or `unrestricted` (any host the session's environment network policy allows).
+
+Optional:
+
+- `allowed_hosts` (List of String) Hosts the secret is substituted on. Required when `type = "limited"`; must not be set for `unrestricted`. Each entry is a bare hostname, an IPv4 address, or a `*.`-prefixed wildcard. At most 16 entries.
+
 
 <a id="nestedatt--auth--refresh"></a>
 ### Nested Schema for `auth.refresh`
@@ -193,8 +253,8 @@ The [`terraform import` command](https://developer.hashicorp.com/terraform/cli/c
 # both ids are `vlt_*` and `cred_*` strings returned by the API.
 #
 # Secrets are never returned by the API, so the WriteOnly attributes
-# (token, access_token, refresh_token, client_secret) start as null after
-# import. Bump the matching *_wo_version after import to re-send the secret
+# (token, access_token, refresh_token, client_secret, secret_value) start as
+# null after import. Bump the matching *_wo_version after import to re-send the secret
 # value from your variable on the next apply.
 
 terraform import claude-managed-agents_vault_credential.linear vlt_01HqR2k7vXbZ9mNpL3wYcT8f:cred_01HFEDCBA9876543210ABCD

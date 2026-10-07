@@ -22,6 +22,14 @@ func agentFromAPI(ctx context.Context, a *client.Agent, priorTools types.List, d
 		CreatedAt: types.StringValue(a.CreatedAt.Format(timeFormatRFC3339)),
 		UpdatedAt: types.StringValue(a.UpdatedAt.Format(timeFormatRFC3339)),
 	}
+	m.ModelEffort = types.StringNull()
+	if a.Model.Effort != nil && a.Model.Effort.Type != "" {
+		m.ModelEffort = types.StringValue(a.Model.Effort.Type)
+	}
+	m.ModelSpeed = types.StringNull()
+	if a.Model.Speed != "" {
+		m.ModelSpeed = types.StringValue(a.Model.Speed)
+	}
 
 	if a.System != nil {
 		m.System = types.StringValue(*a.System)

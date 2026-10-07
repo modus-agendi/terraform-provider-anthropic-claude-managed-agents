@@ -148,7 +148,7 @@ output "code_review_version" {
 
 ### Required
 
-- `model` (String) Model identifier (e.g. `claude-opus-4-7`). Mutable. The API also accepts an object form with `speed`; this provider exposes only the bare string in v0.1.
+- `model` (String) Model identifier (e.g. `claude-opus-4-7`). Mutable. Sent as a bare string unless `model_effort` or `model_speed` is set, in which case the API's object form `{id, effort, speed}` is used.
 - `name` (String) Human-readable agent name. Mutable.
 
 ### Optional
@@ -156,6 +156,8 @@ output "code_review_version" {
 - `description` (String) Free-form description. Optional. Set to `null` to clear.
 - `mcp_servers` (Attributes List) MCP servers the agent may connect to at session runtime. Mutable. Sending an empty list clears server-side state. The upstream API requires that every MCP server be referenced by a matching `tools` entry of type `mcp_toolset`. (see [below for nested schema](#nestedatt--mcp_servers))
 - `metadata` (Map of String) Arbitrary string-string labels. Full-replace on update: the provider sends the exact map declared in HCL, and the upstream API replaces whatever was stored. Removing a key from your HCL deletes it server-side. Omit the attribute to leave it unset; an explicit empty map (`{}`) is rejected.
+- `model_effort` (String) Reasoning effort for the model, sent as `model.effort.type` (e.g. `low`, `medium`, `high`). Optional; when omitted the server default applies and the server-reported value is stored. Mutable.
+- `model_speed` (String) Model speed tier, sent as `model.speed` (e.g. `standard`). Optional; when omitted the server default applies and the server-reported value is stored. Mutable.
 - `multiagent` (Attributes) Multi-agent coordinator config. Mutable. Set to null to clear. (see [below for nested schema](#nestedatt--multiagent))
 - `skills` (Attributes List) Skills the agent has access to. Mutable. (see [below for nested schema](#nestedatt--skills))
 - `system` (String) System prompt for the agent. Optional. Set to `null` to clear.

@@ -359,3 +359,45 @@ resource "claude-managed-agents_agent" "bad" {
 		},
 	})
 }
+
+// TestAccAgentResource_modelEffort covers the object form of the model
+// setting: effort is sent on create, round-trips through read, changes as an
+// in-place update that bumps the version, and re-applying is an empty plan.
+func TestAccAgentResource_modelEffort(t *testing.T) {
+	if os.Getenv("TF_ACC") == "" {
+		t.Skip("set TF_ACC=1 to run acceptance tests")
+	}
+
+	_, cleanup := startFakeAPI(t)
+	defer cleanup()
+
+	name := testAgentName("effort")
+
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: agentResourceConfig("a", name, `  model_effort = "medium"`),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("claude-managed-agents_agent.a", "model", "claude-opus-4-7"),
+					resource.TestCheckResourceAttr("claude-managed-agents_agent.a", "model_effort", "medium"),
+					resource.TestCheckResourceAttr("claude-managed-agents_agent.a", "model_speed", "standard"),
+					resource.TestCheckResourceAttr("claude-managed-agents_agent.a", "version", "1"),
+				),
+			},
+			{
+				Config: agentResourceConfig("a", name, `  model_effort = "medium"`),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{plancheck.ExpectEmptyPlan()},
+				},
+			},
+			{
+				Config: agentResourceConfig("a", name, `  model_effort = "high"`),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("claude-managed-agents_agent.a", "model_effort", "high"),
+					resource.TestCheckResourceAttr("claude-managed-agents_agent.a", "version", "2"),
+				),
+			},
+		},
+	})
+}

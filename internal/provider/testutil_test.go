@@ -42,6 +42,7 @@ type fakeAPI struct {
 	stores         map[string]*fakeMemoryStore
 	vaults         map[string]*fakeVault
 	creds          map[string]*fakeVaultCredential // keyed by credential id
+	credSecrets    map[string]string               // last secret_value received, keyed by credential id
 	files          map[string]*fakeFile
 	agentVersions  map[string][]map[string]any // agent_id → snapshots
 	skills         map[string]*fakeSkill
@@ -109,7 +110,7 @@ type fakeAgent struct {
 	ID          string            `json:"id"`
 	Type        string            `json:"type"`
 	Name        string            `json:"name"`
-	Model       map[string]string `json:"model"`
+	Model       map[string]any    `json:"model"`
 	System      *string           `json:"system"`
 	Description *string           `json:"description"`
 	Metadata    map[string]string `json:"metadata"`
@@ -152,6 +153,7 @@ func newFakeAPI() *fakeAPI {
 		stores:         map[string]*fakeMemoryStore{},
 		vaults:         map[string]*fakeVault{},
 		creds:          map[string]*fakeVaultCredential{},
+		credSecrets:    map[string]string{},
 		files:          map[string]*fakeFile{},
 		agentVersions:  map[string][]map[string]any{},
 		skills:         map[string]*fakeSkill{},
@@ -248,6 +250,13 @@ func (f *fakeAPI) DeleteAllStores() {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.stores = map[string]*fakeMemoryStore{}
+}
+
+// CredSecret returns the last `secret_value` the fake received for credID.
+func (f *fakeAPI) CredSecret(credID string) string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.credSecrets[credID]
 }
 
 // DeleteAllVaults wipes the vault and credential maps. Use to simulate an
@@ -580,6 +589,8 @@ func (f *fakeAPI) handler() http.Handler {
 			switch r.Method {
 			case http.MethodGet:
 				f.envGet(w, m[1])
+			case http.MethodPost:
+				f.envUpdate(w, r, m[1])
 			case http.MethodDelete:
 				f.envDelete(w, m[1])
 			default:
@@ -899,6 +910,49 @@ func (f *fakeAPI) envCreate(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(env)
 }
 
+// envUpdate mirrors POST /v1/environments/{id}: name and config are optional
+// and an omitted field keeps its stored value.
+func (f *fakeAPI) envUpdate(w http.ResponseWriter, r *http.Request, id string) {
+	var body struct {
+		Name   *string        `json:"name"`
+		Config map[string]any `json:"config"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeAPIErr(w, http.StatusBadRequest, "invalid_request_error", err.Error())
+		return
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	e, ok := f.envs[id]
+	if !ok {
+		writeAPIErr(w, http.StatusNotFound, "not_found_error", "no such environment")
+		return
+	}
+	if e.ArchivedAt != nil {
+		writeAPIErr(w, http.StatusConflict, "invalid_request_error", "environment is archived")
+		return
+	}
+	if body.Name != nil {
+		if *body.Name == "" {
+			writeAPIErr(w, http.StatusBadRequest, "invalid_request_error", "name must not be empty")
+			return
+		}
+		e.Name = *body.Name
+	}
+	if body.Config != nil {
+		net, _ := body.Config["networking"].(map[string]any)
+		if net == nil || net["type"] == nil {
+			writeAPIErr(w, http.StatusBadRequest, "invalid_request_error", "config.networking.type is required")
+			return
+		}
+		e.Config = body.Config
+	}
+	e.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
+	w.Header().Set("request-id", "req_"+id)
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(e)
+}
+
 func (f *fakeAPI) envGet(w http.ResponseWriter, id string) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -1115,6 +1169,8 @@ func (f *fakeAPI) create(w http.ResponseWriter, r *http.Request) {
 		writeAPIErr(w, http.StatusBadRequest, "invalid_request_error", "model must be a string or {id} object")
 		return
 	}
+	model := map[string]any{"id": modelID, "speed": "standard"}
+	applyModelObject(model, body.Model)
 
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -1125,7 +1181,7 @@ func (f *fakeAPI) create(w http.ResponseWriter, r *http.Request) {
 		ID:          id,
 		Type:        "agent",
 		Name:        body.Name,
-		Model:       map[string]string{"id": modelID, "speed": "standard"},
+		Model:       model,
 		System:      body.System,
 		Description: body.Description,
 		Metadata:    body.Metadata,
@@ -1200,6 +1256,7 @@ func (f *fakeAPI) update(w http.ResponseWriter, r *http.Request, id string) {
 	if body.Model != nil {
 		if id, ok := modelStringOf(body.Model); ok {
 			a.Model["id"] = id
+			applyModelObject(a.Model, body.Model)
 		}
 	}
 	if body.System != nil {
@@ -1466,7 +1523,31 @@ func (f *fakeAPI) credCreate(w http.ResponseWriter, r *http.Request, vaultID str
 		writeAPIErr(w, http.StatusBadRequest, "invalid_request_error", "auth.type is required")
 		return
 	}
-	if body.Auth["mcp_server_url"] == nil {
+	if body.Auth["type"] == "environment_variable" {
+		// Mirrors BetaManagedAgentsEnvironmentVariableCreateParams:
+		// secret_name, secret_value, and networking are required.
+		for _, k := range []string{"secret_name", "secret_value", "networking"} {
+			if body.Auth[k] == nil {
+				writeAPIErr(w, http.StatusBadRequest, "invalid_request_error", "auth."+k+" is required")
+				return
+			}
+		}
+		if body.Auth["mcp_server_url"] != nil {
+			writeAPIErr(w, http.StatusBadRequest, "invalid_request_error", "auth.mcp_server_url is not allowed for environment_variable")
+			return
+		}
+		if body.Auth["injection_location"] == nil {
+			// The real API's default when injection_location is omitted is
+			// undocumented; the fake picks header-only.
+			body.Auth["injection_location"] = map[string]any{"header": true, "body": false}
+		} else if il, ok := body.Auth["injection_location"].(map[string]any); ok {
+			for _, k := range []string{"header", "body"} {
+				if _, set := il[k]; !set {
+					il[k] = false
+				}
+			}
+		}
+	} else if body.Auth["mcp_server_url"] == nil {
 		writeAPIErr(w, http.StatusBadRequest, "invalid_request_error", "auth.mcp_server_url is required")
 		return
 	}
@@ -1492,6 +1573,9 @@ func (f *fakeAPI) credCreate(w http.ResponseWriter, r *http.Request, vaultID str
 	f.credCounter++
 	now := time.Now().UTC().Format(time.RFC3339)
 	id := fmt.Sprintf("cred_FAKE%04d", f.credCounter)
+	if sv, ok := body.Auth["secret_value"].(string); ok {
+		f.credSecrets[id] = sv
+	}
 	storedAuth := scrubCredentialSecrets(body.Auth)
 	c := &fakeVaultCredential{
 		ID: id, Type: "vault_credential", VaultID: vaultID,
@@ -1540,8 +1624,27 @@ func (f *fakeAPI) credUpdate(w http.ResponseWriter, r *http.Request, vaultID, cr
 		c.DisplayName = *body.DisplayName
 	}
 	if body.Auth != nil {
+		if _, ok := body.Auth["secret_name"]; ok {
+			writeAPIErr(w, http.StatusBadRequest, "invalid_request_error", "auth.secret_name is immutable")
+			return
+		}
+		if sv, ok := body.Auth["secret_value"].(string); ok {
+			f.credSecrets[credID] = sv
+		}
 		// Merge by overwriting non-locked fields and scrubbing secrets.
+		// networking is a full replacement; injection_location merges its
+		// booleans (BetaManagedAgentsInjectionLocationUpdateParams).
 		for k, v := range scrubCredentialSecrets(body.Auth) {
+			if k == "injection_location" {
+				if prev, ok := c.Auth[k].(map[string]any); ok {
+					if next, ok := v.(map[string]any); ok {
+						for ik, iv := range next {
+							prev[ik] = iv
+						}
+						continue
+					}
+				}
+			}
 			c.Auth[k] = v
 		}
 	}
@@ -1607,7 +1710,7 @@ func scrubCredentialSecrets(in map[string]any) map[string]any {
 	out := make(map[string]any, len(in))
 	for k, v := range in {
 		switch k {
-		case "token", "access_token":
+		case "token", "access_token", "secret_value":
 			continue
 		case "refresh":
 			if nested, ok := v.(map[string]any); ok {
@@ -2089,4 +2192,23 @@ provider "claude-managed-agents" {
   base_url = %q
 }
 `, base)
+}
+
+// applyModelObject copies the optional effort and speed fields of a model
+// request written in object form onto the stored model, mirroring how the
+// live API echoes {"id","effort":{"type"},"speed"} on read. A bare-string
+// model leaves both untouched.
+func applyModelObject(dst map[string]any, v any) {
+	obj, ok := v.(map[string]any)
+	if !ok {
+		return
+	}
+	if effort, ok := obj["effort"].(map[string]any); ok {
+		if t, ok := effort["type"].(string); ok && t != "" {
+			dst["effort"] = map[string]any{"type": t}
+		}
+	}
+	if speed, ok := obj["speed"].(string); ok && speed != "" {
+		dst["speed"] = speed
+	}
 }

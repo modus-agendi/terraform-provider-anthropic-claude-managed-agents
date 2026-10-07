@@ -245,3 +245,54 @@ func TestListEnvironments_PassesQueryParams(t *testing.T) {
 		t.Errorf("HasMore = true, want false")
 	}
 }
+
+func TestUpdateEnvironment_HappyPath(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/v1/environments/env_01ABC" {
+			t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
+		}
+		var req EnvironmentUpdateRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		if req.Name != nil {
+			t.Errorf("name should be omitted when unchanged, got %q", *req.Name)
+		}
+		if req.Config == nil || req.Config.Networking.Type != "limited" || len(req.Config.Networking.AllowedHosts) != 1 {
+			t.Errorf("config = %+v", req.Config)
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(envResponseFixture()))
+	}))
+	defer srv.Close()
+
+	c := newTestClient(t, srv)
+	env, err := c.UpdateEnvironment(context.Background(), "env_01ABC", EnvironmentUpdateRequest{
+		Config: &CloudConfig{
+			Type:       "cloud",
+			Networking: Networking{Type: "limited", AllowedHosts: []string{"api.example.com"}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("UpdateEnvironment: %v", err)
+	}
+	if env.ID == "" {
+		t.Error("expected an environment in the response")
+	}
+}
+
+func TestUpdateEnvironment_ValidatesRequired(t *testing.T) {
+	c := newTestClient(t, httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		t.Error("no request expected")
+		w.WriteHeader(http.StatusInternalServerError)
+	})))
+	if _, err := c.UpdateEnvironment(context.Background(), "", EnvironmentUpdateRequest{}); err == nil {
+		t.Error("expected error for empty id")
+	}
+	if _, err := c.UpdateEnvironment(context.Background(), "env_x", EnvironmentUpdateRequest{}); err == nil {
+		t.Error("expected error for empty update")
+	}
+	if _, err := c.UpdateEnvironment(context.Background(), "env_x", EnvironmentUpdateRequest{Config: &CloudConfig{Type: "cloud"}}); err == nil {
+		t.Error("expected error for missing networking type")
+	}
+}

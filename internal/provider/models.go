@@ -10,6 +10,8 @@ type agentModel struct {
 	ID          types.String `tfsdk:"id"`
 	Name        types.String `tfsdk:"name"`
 	Model       types.String `tfsdk:"model"`
+	ModelEffort types.String `tfsdk:"model_effort"`
+	ModelSpeed  types.String `tfsdk:"model_speed"`
 	System      types.String `tfsdk:"system"`
 	Description types.String `tfsdk:"description"`
 	Metadata    types.Map    `tfsdk:"metadata"`
@@ -59,6 +61,7 @@ type deploymentRunsModel struct {
 // providerModel is the Terraform schema representation of the provider block.
 type providerModel struct {
 	APIKey     types.String `tfsdk:"api_key"`
+	AuthToken  types.String `tfsdk:"auth_token"`
 	BaseURL    types.String `tfsdk:"base_url"`
 	MaxRetries types.Int64  `tfsdk:"max_retries"`
 }

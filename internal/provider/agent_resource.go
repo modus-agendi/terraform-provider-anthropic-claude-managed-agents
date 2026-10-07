@@ -50,8 +50,20 @@ func (r *agentResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 				Required:            true,
 			},
 			"model": schema.StringAttribute{
-				MarkdownDescription: "Model identifier (e.g. `claude-opus-4-7`). Mutable. The API also accepts an object form with `speed`; this provider exposes only the bare string in v0.1.",
+				MarkdownDescription: "Model identifier (e.g. `claude-opus-4-7`). Mutable. Sent as a bare string unless `model_effort` or `model_speed` is set, in which case the API's object form `{id, effort, speed}` is used.",
 				Required:            true,
+			},
+			"model_effort": schema.StringAttribute{
+				MarkdownDescription: "Reasoning effort for the model, sent as `model.effort.type` (e.g. `low`, `medium`, `high`). Optional; when omitted the server default applies and the server-reported value is stored. Mutable.",
+				Optional:            true,
+				Computed:            true,
+				PlanModifiers:       []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			},
+			"model_speed": schema.StringAttribute{
+				MarkdownDescription: "Model speed tier, sent as `model.speed` (e.g. `standard`). Optional; when omitted the server default applies and the server-reported value is stored. Mutable.",
+				Optional:            true,
+				Computed:            true,
+				PlanModifiers:       []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
 			"system": schema.StringAttribute{
 				MarkdownDescription: "System prompt for the agent. Optional. Set to `null` to clear.",
@@ -230,7 +242,7 @@ func (r *agentResource) Create(ctx context.Context, req resource.CreateRequest, 
 
 	apiReq := client.AgentCreateRequest{
 		Name:  plan.Name.ValueString(),
-		Model: plan.Model.ValueString(),
+		Model: modelSpecFromPlan(plan),
 	}
 	if !plan.System.IsNull() && !plan.System.IsUnknown() {
 		v := plan.System.ValueString()
@@ -315,8 +327,8 @@ func (r *agentResource) Update(ctx context.Context, req resource.UpdateRequest, 
 		v := plan.Name.ValueString()
 		updateReq.Name = &v
 	}
-	if !plan.Model.Equal(state.Model) {
-		v := plan.Model.ValueString()
+	if !plan.Model.Equal(state.Model) || !plan.ModelEffort.Equal(state.ModelEffort) || !plan.ModelSpeed.Equal(state.ModelSpeed) {
+		v := modelSpecFromPlan(plan)
 		updateReq.Model = &v
 	}
 	if !plan.System.Equal(state.System) {
@@ -441,3 +453,17 @@ const agentResourceMarkdown = "Manages a Claude Managed Agents agent.\n\n" +
 	"The `metadata` map uses full-replace semantics: the provider sends the exact map declared in HCL on every update, and the upstream API replaces whatever was stored. Removing a key from your HCL deletes it server-side.\n\n" +
 	"### Server-side nested fields\n\n" +
 	"All four nested-config fields (`tools`, `mcp_servers`, `skills`, `multiagent`) are first-class HCL as of v0.2. Sending an empty list clears server-side state; omitting the attribute leaves it unchanged."
+
+// modelSpecFromPlan builds the request model from the planned model, effort
+// and speed. Unknown values (Optional+Computed attributes the user left unset)
+// are omitted so the server default applies and is read back into state.
+func modelSpecFromPlan(plan agentModel) client.ModelSpec {
+	spec := client.ModelSpec{ID: plan.Model.ValueString()}
+	if !plan.ModelEffort.IsNull() && !plan.ModelEffort.IsUnknown() {
+		spec.Effort = plan.ModelEffort.ValueString()
+	}
+	if !plan.ModelSpeed.IsNull() && !plan.ModelSpeed.IsUnknown() {
+		spec.Speed = plan.ModelSpeed.ValueString()
+	}
+	return spec
+}

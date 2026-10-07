@@ -8,7 +8,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/objectplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
@@ -45,14 +44,12 @@ func (r *environmentResource) Schema(_ context.Context, _ resource.SchemaRequest
 				PlanModifiers:       []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
 			"name": schema.StringAttribute{
-				MarkdownDescription: "Human-readable environment name. Immutable — changing forces replacement.",
+				MarkdownDescription: "Human-readable environment name. Mutable; updated in place.",
 				Required:            true,
-				PlanModifiers:       []planmodifier.String{stringplanmodifier.RequiresReplace()},
 			},
 			"config": schema.SingleNestedAttribute{
-				MarkdownDescription: "Sandbox configuration. Immutable — changing any field forces replacement.",
+				MarkdownDescription: "Sandbox configuration. Mutable; any change is sent as an in-place update (`POST /v1/environments/{id}`) with the full planned config. Environments are not versioned: sessions already running keep the sandbox they started with, new sessions get the updated one.",
 				Required:            true,
-				PlanModifiers:       []planmodifier.Object{objectplanmodifier.RequiresReplace()},
 				Attributes: map[string]schema.Attribute{
 					"type": schema.StringAttribute{
 						MarkdownDescription: "Config discriminator. Currently only `cloud` is supported.",
@@ -181,15 +178,47 @@ func (r *environmentResource) Read(ctx context.Context, req resource.ReadRequest
 	resp.Diagnostics.Append(resp.State.Set(ctx, fresh)...)
 }
 
-// Update is required by the framework but environments have no upstream
-// update endpoint. Every mutable-looking attribute is marked RequiresReplace,
-// so this method should never be called with a meaningful diff. If it ever
-// is, surface an error rather than silently dropping the change.
-func (r *environmentResource) Update(_ context.Context, _ resource.UpdateRequest, resp *resource.UpdateResponse) {
-	resp.Diagnostics.AddError(
-		"Environment is immutable",
-		"Environments cannot be updated in place. Every attribute requires replacement. This is a provider bug if you see this — please file an issue.",
-	)
+// Update issues POST /v1/environments/{id} with whatever changed. The full
+// planned config is sent when any part of it differs, because the API merges
+// omitted fields and a partial body could leave stale nested values behind.
+func (r *environmentResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	var plan, state environmentModel
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	var updateReq client.EnvironmentUpdateRequest
+	if !plan.Name.Equal(state.Name) {
+		v := plan.Name.ValueString()
+		updateReq.Name = &v
+	}
+	if !plan.Config.Equal(state.Config) {
+		apiCfg, diags := configToAPI(ctx, plan.Config)
+		resp.Diagnostics.Append(diags...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+		updateReq.Config = &apiCfg
+	}
+	if updateReq.Name == nil && updateReq.Config == nil {
+		resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
+		return
+	}
+
+	env, err := r.client.UpdateEnvironment(ctx, state.ID.ValueString(), updateReq)
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to update environment", err.Error())
+		return
+	}
+
+	fresh, diags := environmentFromAPI(ctx, env)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	resp.Diagnostics.Append(resp.State.Set(ctx, fresh)...)
 }
 
 // Delete tries DELETE /v1/environments/{id} first. On 409 (sessions still
@@ -269,8 +298,8 @@ func networkingObjectAttrTypes() map[string]attr.Type {
 }
 
 const environmentResourceMarkdown = "Manages a Claude Managed Agents sandbox environment.\n\n" +
-	"### Immutability\n\n" +
-	"The upstream API does not expose an update endpoint for environments. Every attribute is marked `RequiresReplace`: changing any field — including a single package list entry — causes Terraform to destroy and re-create the environment.\n\n" +
+	"### Updates\n\n" +
+	"`name` and `config` are updated in place through `POST /v1/environments/{id}`; nothing forces replacement. Environments are not versioned upstream, so a config change takes effect for every new session and Terraform state plus your VCS history are the record of what each session ran with. Sessions already running keep the sandbox they started with.\n\n" +
 	"### Lifecycle on destroy\n\n" +
 	"`terraform destroy` first issues `DELETE /v1/environments/{id}`. If the API returns 409 (typically because an active session references the environment), the provider falls back to `POST /v1/environments/{id}/archive`. Archived environments remain visible via the data source until the API server prunes them, but they no longer accept new sessions.\n\n" +
 	"### Networking policy\n\n" +

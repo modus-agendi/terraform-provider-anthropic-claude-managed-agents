@@ -223,7 +223,27 @@ resource "claude-managed-agents_vault_credential" "oauth" {
       }
     }
   }
-}`, providerConfig(), name, name, name)
+}
+
+# environment_variable credential with every non-secret field set.
+resource "claude-managed-agents_vault_credential" "envvar" {
+  vault_id     = claude-managed-agents_vault.parent.id
+  display_name = "%s-envvar"
+  auth = {
+    type                    = "environment_variable"
+    secret_name             = "NODRIFT_API_KEY"
+    secret_value            = "value-not-in-state"
+    secret_value_wo_version = 1
+    networking = {
+      type          = "limited"
+      allowed_hosts = ["api.example.com", "*.example.org"]
+    }
+    injection_location = {
+      header = true
+      body   = true
+    }
+  }
+}`, providerConfig(), name, name, name, name)
 	})
 }
 

@@ -2,6 +2,7 @@ package provider
 
 import (
 	"fmt"
+	"github.com/hashicorp/terraform-plugin-testing/terraform"
 	"os"
 	"regexp"
 	"testing"
@@ -115,7 +116,7 @@ func TestAccEnvironmentResource_packagesAndLimitedNetworking(t *testing.T) {
 // TestAccEnvironmentResource_requiresReplaceOnNameChange asserts the
 // RequiresReplace planmodifier on `name`: Terraform must plan a replace,
 // not an in-place update.
-func TestAccEnvironmentResource_requiresReplaceOnNameChange(t *testing.T) {
+func TestAccEnvironmentResource_updateNameInPlace(t *testing.T) {
 	if os.Getenv("TF_ACC") == "" {
 		t.Skip("set TF_ACC=1 to run acceptance tests")
 	}
@@ -123,31 +124,36 @@ func TestAccEnvironmentResource_requiresReplaceOnNameChange(t *testing.T) {
 	_, cleanup := startFakeAPI(t)
 	defer cleanup()
 
-	first := testAgentName("env-replace-1")
-	second := testAgentName("env-replace-2")
+	first := testAgentName("env-rename-1")
+	second := testAgentName("env-rename-2")
 
 	resource.UnitTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
-			{Config: environmentResourceConfig("e", first, unrestrictedCloudConfig)},
+			{
+				Config: environmentResourceConfig("e", first, unrestrictedCloudConfig),
+				Check:  resource.TestCheckResourceAttrSet("claude-managed-agents_environment.e", "id"),
+			},
 			{
 				Config: environmentResourceConfig("e", second, unrestrictedCloudConfig),
 				ConfigPlanChecks: resource.ConfigPlanChecks{
 					PreApply: []plancheck.PlanCheck{
 						plancheck.ExpectResourceAction(
 							"claude-managed-agents_environment.e",
-							plancheck.ResourceActionDestroyBeforeCreate,
+							plancheck.ResourceActionUpdate,
 						),
 					},
 				},
+				Check: resource.TestCheckResourceAttr("claude-managed-agents_environment.e", "name", second),
 			},
 		},
 	})
 }
 
-// TestAccEnvironmentResource_requiresReplaceOnConfigChange exercises the
-// objectplanmodifier.RequiresReplace on `config`.
-func TestAccEnvironmentResource_requiresReplaceOnConfigChange(t *testing.T) {
+// TestAccEnvironmentResource_updateConfigInPlace covers the in-place config
+// update: the id is stable across the change, the plan is an Update rather
+// than a replace, and the new networking policy reads back.
+func TestAccEnvironmentResource_updateConfigInPlace(t *testing.T) {
 	if os.Getenv("TF_ACC") == "" {
 		t.Skip("set TF_ACC=1 to run acceptance tests")
 	}
@@ -155,12 +161,20 @@ func TestAccEnvironmentResource_requiresReplaceOnConfigChange(t *testing.T) {
 	_, cleanup := startFakeAPI(t)
 	defer cleanup()
 
-	name := testAgentName("env-cfgreplace")
+	name := testAgentName("env-cfgupdate")
+	var id string
 
 	resource.UnitTest(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
-			{Config: environmentResourceConfig("e", name, unrestrictedCloudConfig)},
+			{
+				Config: environmentResourceConfig("e", name, unrestrictedCloudConfig),
+				Check: func(s *terraform.State) error {
+					rs := s.RootModule().Resources["claude-managed-agents_environment.e"]
+					id = rs.Primary.ID
+					return nil
+				},
+			},
 			{
 				Config: environmentResourceConfig("e", name, `
     type = "cloud"
@@ -172,10 +186,21 @@ func TestAccEnvironmentResource_requiresReplaceOnConfigChange(t *testing.T) {
 					PreApply: []plancheck.PlanCheck{
 						plancheck.ExpectResourceAction(
 							"claude-managed-agents_environment.e",
-							plancheck.ResourceActionDestroyBeforeCreate,
+							plancheck.ResourceActionUpdate,
 						),
 					},
 				},
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("claude-managed-agents_environment.e", "config.networking.type", "limited"),
+					resource.TestCheckResourceAttr("claude-managed-agents_environment.e", "config.networking.allowed_hosts.0", "pypi.org"),
+					func(s *terraform.State) error {
+						rs := s.RootModule().Resources["claude-managed-agents_environment.e"]
+						if rs.Primary.ID != id {
+							return fmt.Errorf("environment id changed on update: %s -> %s", id, rs.Primary.ID)
+						}
+						return nil
+					},
+				),
 			},
 		},
 	})

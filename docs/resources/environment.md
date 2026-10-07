@@ -4,8 +4,8 @@ page_title: "claude-managed-agents_environment Resource - Claude Managed Agents"
 subcategory: ""
 description: |-
   Manages a Claude Managed Agents sandbox environment.
-  Immutability
-  The upstream API does not expose an update endpoint for environments. Every attribute is marked RequiresReplace: changing any field — including a single package list entry — causes Terraform to destroy and re-create the environment.
+  Updates
+  name and config are updated in place through POST /v1/environments/{id}; nothing forces replacement. Environments are not versioned upstream, so a config change takes effect for every new session and Terraform state plus your VCS history are the record of what each session ran with. Sessions already running keep the sandbox they started with.
   Lifecycle on destroy
   terraform destroy first issues DELETE /v1/environments/{id}. If the API returns 409 (typically because an active session references the environment), the provider falls back to POST /v1/environments/{id}/archive. Archived environments remain visible via the data source until the API server prunes them, but they no longer accept new sessions.
   Networking policy
@@ -17,9 +17,9 @@ description: |-
 
 Manages a Claude Managed Agents sandbox environment.
 
-### Immutability
+### Updates
 
-The upstream API does not expose an update endpoint for environments. Every attribute is marked `RequiresReplace`: changing any field — including a single package list entry — causes Terraform to destroy and re-create the environment.
+`name` and `config` are updated in place through `POST /v1/environments/{id}`; nothing forces replacement. Environments are not versioned upstream, so a config change takes effect for every new session and Terraform state plus your VCS history are the record of what each session ran with. Sessions already running keep the sandbox they started with.
 
 ### Lifecycle on destroy
 
@@ -93,8 +93,8 @@ output "data_science_env_id" {
 
 ### Required
 
-- `config` (Attributes) Sandbox configuration. Immutable — changing any field forces replacement. (see [below for nested schema](#nestedatt--config))
-- `name` (String) Human-readable environment name. Immutable — changing forces replacement.
+- `config` (Attributes) Sandbox configuration. Mutable; any change is sent as an in-place update (`POST /v1/environments/{id}`) with the full planned config. Environments are not versioned: sessions already running keep the sandbox they started with, new sessions get the updated one. (see [below for nested schema](#nestedatt--config))
+- `name` (String) Human-readable environment name. Mutable; updated in place.
 
 ### Read-Only
 

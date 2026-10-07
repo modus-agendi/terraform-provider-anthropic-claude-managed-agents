@@ -63,6 +63,34 @@ resource "claude-managed-agents_vault_credential" "slack" {
   }
 }
 
+# Environment-variable credential. The sandbox sees DATADOG_API_KEY as an
+# opaque placeholder; Anthropic substitutes the real value at egress, only
+# on requests to the allowed hosts and only where injection_location
+# permits. secret_name is immutable; networking and injection_location are
+# updated in place. To rotate, change var.datadog_api_key AND increment
+# secret_value_wo_version.
+resource "claude-managed-agents_vault_credential" "datadog" {
+  vault_id     = claude-managed-agents_vault.alice.id
+  display_name = "Datadog API key"
+
+  auth = {
+    type                    = "environment_variable"
+    secret_name             = "DATADOG_API_KEY"
+    secret_value            = var.datadog_api_key
+    secret_value_wo_version = 1
+
+    networking = {
+      type          = "limited"
+      allowed_hosts = ["api.datadoghq.com"]
+    }
+
+    injection_location = {
+      header = true
+      body   = false
+    }
+  }
+}
+
 variable "linear_token" {
   type        = string
   sensitive   = true
@@ -85,4 +113,10 @@ variable "slack_client_secret" {
   type        = string
   sensitive   = true
   description = "Slack OAuth client secret."
+}
+
+variable "datadog_api_key" {
+  type        = string
+  sensitive   = true
+  description = "Datadog API key."
 }

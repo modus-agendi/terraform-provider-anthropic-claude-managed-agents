@@ -6,6 +6,42 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Provider: bearer-token authentication. A new sensitive `auth_token`
+  attribute, defaulting to the `ANTHROPIC_AUTH_TOKEN` environment variable,
+  sends `Authorization: Bearer <token>` instead of `x-api-key`, so an OAuth
+  login or a workload-identity-federation token can apply without a stored
+  API key. Setting both `auth_token` and `api_key` is an error.
+
+- `claude-managed-agents_agent`: new optional `model_effort` and `model_speed`
+  attributes. When either is set the provider sends the API's object form
+  `{"id", "effort": {"type"}, "speed"}` instead of the bare model string;
+  both are Computed so the server-reported values land in state when unset.
+  The `client.AgentCreateRequest.Model` / `AgentUpdateRequest.Model` fields
+  are now `client.ModelSpec` rather than `string`.
+- `claude-managed-agents_vault_credential`: support `auth.type =
+  "environment_variable"` with `secret_name` (immutable), write-only
+  `secret_value` + `secret_value_wo_version` rotation counter, `networking`
+  (`limited` + `allowed_hosts`, or `unrestricted`), and `injection_location`
+  (`header`, `body`; Computed, API default recorded when unset). `networking`
+  and `injection_location` update in place. The data source exposes the
+  non-secret fields. Per-type required/forbidden `auth` attributes are now
+  checked at validate time.
+
+### Changed
+
+- `claude-managed-agents_vault_credential`: `auth.mcp_server_url` is now
+  Optional at the schema level; it is still required (by config validation)
+  for `static_bearer` and `mcp_oauth`, and must be unset for
+  `environment_variable`. `auth.type` values outside the three supported
+  types are rejected at plan time.
+- `claude-managed-agents_environment`: `name` and `config` are now updated
+  in place via `POST /v1/environments/{id}` instead of forcing replacement.
+  The upstream API gained an update endpoint; the resource previously
+  documented that none existed. Environments are not versioned upstream, so
+  a config change applies to every new session. New `client.UpdateEnvironment`.
+
 ## [1.2.0] - 2026-07-10
 
 No provider behavior changes since v1.1.0. The resource and data-source

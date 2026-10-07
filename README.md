@@ -112,8 +112,9 @@ terraform apply
 
 The provider reads credentials from, in order of precedence:
 
-1. The `api_key` argument on the `provider` block.
-2. The `ANTHROPIC_API_KEY` environment variable.
+1. The `auth_token` or `api_key` argument on the `provider` block (set only one).
+2. The `ANTHROPIC_AUTH_TOKEN` environment variable: an OAuth or federated access token, sent as `Authorization: Bearer`.
+3. The `ANTHROPIC_API_KEY` environment variable, sent as `x-api-key`.
 
 `api_key` is marked `Sensitive` in the schema, so it is redacted from plan/apply output. Provider configuration is **not** written to Terraform state, so the key never lands in the state file regardless of how you supply it. The risk of hardcoding it in the `provider` block is that it then lives in your configuration files (and version control), and can surface in `TF_LOG` debug or crash logs — so prefer the `ANTHROPIC_API_KEY` environment variable in production and CI.
 

@@ -320,3 +320,52 @@ func TestListVaultCredentials_PassesQueryParams(t *testing.T) {
 		t.Fatalf("ListVaultCredentials: %v", err)
 	}
 }
+
+func TestCreateVaultCredential_EnvironmentVariable(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var raw map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&raw)
+		auth, _ := raw["auth"].(map[string]any)
+		if auth["type"] != "environment_variable" || auth["secret_name"] != "DD_API_KEY" || auth["secret_value"] != "dd-secret" {
+			t.Errorf("auth not propagated: %v", auth)
+		}
+		if _, ok := auth["mcp_server_url"]; ok {
+			t.Errorf("mcp_server_url must not be sent for environment_variable")
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{
+			"id":"vcrd_FAKE0001","type":"vault_credential","vault_id":"vlt_x",
+			"display_name":"Datadog",
+			"auth":{"type":"environment_variable","secret_name":"DD_API_KEY",
+				"networking":{"type":"limited","allowed_hosts":["api.datadoghq.com"]},
+				"injection_location":{"header":true,"body":false}},
+			"created_at":"2026-05-13T00:00:00Z","updated_at":"2026-05-13T00:00:00Z","archived_at":null
+		}`))
+	}))
+	defer srv.Close()
+
+	c := newTestClient(t, srv)
+	cred, err := c.CreateVaultCredential(context.Background(), "vlt_x", VaultCredentialCreateRequest{
+		DisplayName: "Datadog",
+		Auth: map[string]any{
+			"type":               "environment_variable",
+			"secret_name":        "DD_API_KEY",
+			"secret_value":       "dd-secret",
+			"networking":         map[string]any{"type": "limited", "allowed_hosts": []string{"api.datadoghq.com"}},
+			"injection_location": map[string]any{"header": true},
+		},
+	})
+	if err != nil {
+		t.Fatalf("CreateVaultCredential: %v", err)
+	}
+	if cred.Auth.SecretName != "DD_API_KEY" || cred.Auth.McpServerURL != "" {
+		t.Errorf("Auth = %+v", cred.Auth)
+	}
+	if cred.Auth.Networking == nil || cred.Auth.Networking.Type != "limited" ||
+		len(cred.Auth.Networking.AllowedHosts) != 1 || cred.Auth.Networking.AllowedHosts[0] != "api.datadoghq.com" {
+		t.Errorf("Networking = %+v", cred.Auth.Networking)
+	}
+	if cred.Auth.InjectionLocation == nil || !cred.Auth.InjectionLocation.Header || cred.Auth.InjectionLocation.Body {
+		t.Errorf("InjectionLocation = %+v", cred.Auth.InjectionLocation)
+	}
+}

@@ -45,6 +45,11 @@ func (p *claudeProvider) Schema(_ context.Context, _ provider.SchemaRequest, res
 				Optional:            true,
 				Sensitive:           true,
 			},
+			"auth_token": schema.StringAttribute{
+				MarkdownDescription: "Anthropic OAuth or federated access token, sent as `Authorization: Bearer`. Defaults to the `ANTHROPIC_AUTH_TOKEN` environment variable. Set this or `api_key`, not both. Marked sensitive: not shown in plan output.",
+				Optional:            true,
+				Sensitive:           true,
+			},
 			"base_url": schema.StringAttribute{
 				MarkdownDescription: "API base URL. Defaults to `https://api.anthropic.com`. Override for self-hosted gateways or to point at a local test server.",
 				Optional:            true,
@@ -65,14 +70,29 @@ func (p *claudeProvider) Configure(ctx context.Context, req provider.ConfigureRe
 	}
 
 	apiKey := cfg.APIKey.ValueString()
-	if apiKey == "" {
-		apiKey = os.Getenv("ANTHROPIC_API_KEY")
+	authToken := cfg.AuthToken.ValueString()
+	// An explicit attribute wins over the environment; within the
+	// environment, a bearer token wins over an API key so that exporting
+	// ANTHROPIC_AUTH_TOKEN is enough to switch an operator off a stored key.
+	if apiKey == "" && authToken == "" {
+		authToken = os.Getenv("ANTHROPIC_AUTH_TOKEN")
+		if authToken == "" {
+			apiKey = os.Getenv("ANTHROPIC_API_KEY")
+		}
 	}
-	if apiKey == "" {
+	if apiKey == "" && authToken == "" {
 		resp.Diagnostics.AddAttributeError(
 			path.Root("api_key"),
-			"Missing Anthropic API key",
-			"Set the `api_key` provider attribute or the `ANTHROPIC_API_KEY` environment variable.",
+			"Missing Anthropic credentials",
+			"Set the `auth_token` or `api_key` provider attribute, or the `ANTHROPIC_AUTH_TOKEN` or `ANTHROPIC_API_KEY` environment variable.",
+		)
+		return
+	}
+	if apiKey != "" && authToken != "" {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("auth_token"),
+			"Conflicting Anthropic credentials",
+			"Set only one of the `auth_token` and `api_key` provider attributes.",
 		)
 		return
 	}
@@ -86,6 +106,7 @@ func (p *claudeProvider) Configure(ctx context.Context, req provider.ConfigureRe
 	userAgent := "terraform-provider-anthropic-claude-managed-agents/" + p.version
 	c, err := client.New(client.Config{
 		APIKey:     apiKey,
+		AuthToken:  authToken,
 		BaseURL:    baseURL,
 		UserAgent:  userAgent,
 		MaxRetries: maxRetries,
